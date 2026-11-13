@@ -2,7 +2,7 @@
 
 Home Assistant Custom Integration für [openGym](https://github.com/DuarteSantos8/openGym).
 
-openGym sendet bei **abgeschlossenem Workout**, **neuem Personal Record** und **Waegen** signierte Webhooks – diese Integration nimmt sie entgegen, feuert Events auf der HA-Ereignisseite und zeigt die neuesten Ergebnisse als Sensoren.
+openGym sendet bei **abgeschlossenem Workout**, **neuem Personal Record** und **Wiegen** signierte Webhooks – die Integration nimmt sie entgegen, feuert Events auf dem HA-Ereignisbus und pollt zusätzlich den kompletten Kontostand (`/api/data`): Trainingsplan, Muskelabdeckung, Streaks und Services.
 
 ## Installation
 
@@ -20,21 +20,49 @@ Alternativ `custom_components/opengym/` ins HA-Konfigurationsverzeichnis kopiere
    danach den `api`-Container neu starten.
 
 2. **In HA:** Einstellungen → Geräte & Dienste → Integration hinzufügen → **openGym**.
-   Name und optional das Signing Secret eingeben. Nach dem Anlegen zeigt die Integrationsseite die Webhook-URL (`/api/webhook/...`).
+   URL der Instanz eingeben.
 
-3. **In openGym:** Einstellungen → Integrationen → Webhooks → **Verbinden**, URL einfügen,
-   die gewuenschten Ereignisse (Workout beendet, PR, Wiegen) anhaengen und das einmalig
-   angezeigte **Signing Secret** in HA eintragen.
+3. **Koppeln:** In openGym unter Einstellungen → Integrationen → *„Die App koppeln“*
+   einen Code erstellen (5 Min. gültig) und im Config-Flow eintragen. Optional das
+   Signing Secret aus den Webhooks mitgeben. Danach legt HA den Webhook-Pfad an — die
+   URL (`/api/webhook/...`) wird auf der Integrationsseite angezeigt und muss in
+   openGym unter Einstellungen → Integrationen → Webhooks als Webhook eingetragen
+   werden (sonst kommen keine Push-Events an).
 
 ## Sensoren
 
-| Sensor | Zustand |
-|---|---|
-| Letztes Workout | `Push (61 min)` |
-| Letzter Rekord | `barbell bench press 82.5kg x5` |
-| Letzte Wieegung | `80.4 kg` |
+Stamm-Sensoren (Webhooks + Polling von `/api/data`):
 
-Alle Sensoren fueren das komplette Payload als Attribute (`exercises`, `totals`, `records`, …).
+| Entity | Zustand |
+|---|---|
+| `sensor.opengym_last_workout` | Name des letzten Workouts (Attribute: Datum, Volumen, Saetze) |
+| `sensor.opengym_last_record` | PRs des letzten Workouts |
+| `sensor.opengym_last_weighin` | Gewicht als echter Wiegesensor (kg) |
+| `sensor.opengym_week_volume` | Volumen diese Woche (kg) |
+| `sensor.opengym_week_workouts` | Workouts diese Woche |
+| `sensor.opengym_streak` | Trainingstage in Folge |
+| `sensor.opengym_next_session` | `Push - 2026-11-16` oder `Rest` |
+| `sensor.opengym_total_lifting` | Gehobenes Gesamtvolumen (kg) |
+
+Muskel-Abdeckung (14 Gruppen, aus openGyms Muskelkarte, 246 Uebungen):
+
+* `sensor.opengym_muscle_<gruppe>` - Tage seit der letzten Einheit (999 = nie)
+* `binary_sensor.opengym_muscle_<gruppe>_recovering` - `on`, solange die Gruppe noch in Erholung ist (<= 2 Tage)
+
+Dazu:
+
+* `binary_sensor.opengym_rest_day` - `on`, wenn heute keine Einheit geplant ist
+* `calendar.opengym_training_plan` - Wochentagsplan (mit Tages-Overrides) als Kalender
+
+## Services
+
+```yaml
+action: opengym.log_weighin
+data: { weight: 80.4, unit: kg }          # Wiegen -> openGym zurueck schreiben
+
+action: opengym.trigger_test_event
+data: { event_type: workout.finished }    # openGym schickt sofort ein Test-Event
+```
 
 ## Events
 

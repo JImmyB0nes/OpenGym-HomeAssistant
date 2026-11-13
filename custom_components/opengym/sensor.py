@@ -2,110 +2,187 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
-from .coordinator import OpenGymCoordinator
+from .const import DOMAIN, MUSCLES
+from .coordinator import OpenGymDataCoordinator, OpenGymState
 
-# sensor key -> (event type, friendly name, icon)
-SENSORS: dict[str, tuple[str, str, str]] = {
-    "last_workout": ("workout.finished", "Letztes Workout", "mdi:weight-lifter"),
-    "last_record": ("workout.pr", "Letzter Rekord", "mdi:trophy"),
-    "last_weighin": ("weighin.logged", "Letzte Waegung", "mdi:scale-bathroom"),
-}
+# (key, name, kind) — kind selects the value function below.
+STATIC_SENSORS = (
+    ("last_workout", "Last workout", "workout"),
+    ("last_record", "Last personal record", "record"),
+    ("last_weighin", "Last weigh-in", "weighin"),
+    ("week_volume", "Volume this week", "volume"),
+    ("week_workouts", "Workouts this week", "count"),
+    ("streak", "Workout streak", "streak"),
+    ("next_session", "Next session", "next"),
+    ("total_lifting", "Total lifted", "total"),
+)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up openGym sensors."""
-    coordinator: OpenGymCoordinator = entry.runtime_data.coordinator
-    async_add_entities(
-        OpenGymSensor(coordinator, entry, key, event_type, name, icon)
-        for key, (event_type, name, icon) in SENSORS.items()
-    )
+    coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
+    device = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+    entities: list[SensorEntity] = [
+        OpenGymSensor(coordinator, entry, key, name, kind)
+        for key, name, kind in STATIC_SENSORS
+    ]
+    entities += [
+        MuscleDaysSensor(coordinator, entry, muscle, label) for muscle, label in MUSCLES.items()
+    ]
+    async_add_entities(entities)
 
 
-class OpenGymSensor(CoordinatorEntity[OpenGymCoordinator], SensorEntity):
-    """Sensor exposing the most recent event of one openGym event type."""
+class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
+    """A sensor derived from the polled openGym state (and live webhooks)."""
 
     _attr_has_entity_name = True
 
-    def __init__(
-        self,
-        coordinator: OpenGymCoordinator,
-        entry: ConfigEntry,
-        key: str,
-        event_type: str,
-        name: str,
-        icon: str,
-    ) -> None:
-        """Initialize the sensor."""
+    def __init__(self, coordinator, entry, key: str, name: str, kind: str) -> None:
         super().__init__(coordinator)
-        self._event_type = event_type
+        self._key = key
+        self._kind = kind
+        self._attr_translation_key = key
         self._attr_name = name
-        self._attr_icon = icon
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="openGym",
-            manufacturer="openGym",
-            model="Webhook events",
-        )
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        if kind == "weighin":
+            self._attr_device_class = SensorDeviceClass.WEIGHT
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif kind in ("volume", "total"):
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif kind == "count":
+            self._attr_state_class = SensorStateClass.TOTAL
+        elif kind == "streak":
+            self._attr_native_unit_of_measurement = UnitOfTime.DAYS
+            self._attr_icon = "mdi:fire"
+        elif kind == "next":
+            self._attr_icon = "mdi:calendar-clock"
+        elif kind == "record":
+            self._attr_icon = "mdi:trophy"
+        elif kind == "workout":
+            self._attr_icon = "mdi:weight-lifter"
 
     @property
     def available(self) -> bool:
-        """Sensor is available once at least one event of its type arrived."""
-        return self.coordinator.async_get_last(self._event_type) is not None
+        return self.coordinator.last_update_success
 
     @property
-    def native_value(self) -> str | None:
-        """Short human-readable state for the event."""
-        event = self.coordinator.async_get_last(self._event_type)
-        if not event:
+    def native_unit_of_measurement(self) -> str | None:
+        if self._kind in ("weighin", "volume", "total"):
+            state = self.coordinator.data
+            if state and state.unit == "lb":
+                return UnitOfMass.POUNDS
+            return UnitOfMass.KILOGRAMS
+        return super().native_unit_of_measurement
+
+    @property
+    def native_value(self) -> Any:
+        state: OpenGymState | None = self.coordinator.data
+        if state is None:
             return None
-        data = event.get("data", {})
-        if self._event_type == "workout.finished":
-            workout = data.get("workout", {})
-            name = workout.get("name", "Workout")
-            minutes = workout.get("durationMin")
-            return f"{name} ({minutes} min)" if minutes else name
-        if self._event_type == "workout.pr":
-            records = data.get("records", [])
-            if records:
-                rec = records[0]
-                return f"{rec.get('name', '?')} {rec.get('weight', '?')}{data.get('unit', '')} x{rec.get('reps', '?')}"
-            return "Personal Record"
-        if self._event_type == "weighin.logged":
-            weighin = data.get("weighin", {})
-            weight = weighin.get("weight")
-            unit = weighin.get("unit", "")
-            return f"{weight} {unit}".strip() if weight is not None else None
+        today = date.today()
+        if self._kind == "workout":
+            w = state.last_workout()
+            if not w:
+                return None
+            name = w.get("name") or "Workout"
+            return name
+        if self._kind == "record":
+            w = state.last_workout()
+            prs = (w or {}).get("prs") or []
+            if not prs:
+                return None
+            return f"{len(prs)} record(s) in {w.get('name', 'workout')}"
+        if self._kind == "weighin":
+            b = state.last_weighin()
+            return b.get("w") if b else None
+        if self._kind == "volume":
+            return round(state.week_volume(today), 1)
+        if self._kind == "count":
+            return state.week_count(today)
+        if self._kind == "streak":
+            return state.streak(today)
+        if self._kind == "next":
+            nxt = state.next_session(today)
+            if not nxt:
+                return "Rest"
+            routine, day = nxt
+            return f"{routine.get('name', '?')} · {day.isoformat()}"
+        if self._kind == "total":
+            return round(sum(w.get("vol") or 0 for w in state.workouts), 0)
         return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Full event payload as attributes."""
-        event = self.coordinator.async_get_last(self._event_type)
-        if not event:
+        state = self.coordinator.data
+        if state is None:
             return {}
-        return {
-            "event_id": event.get("event_id"),
-            "created_at": event.get("created_at"),
-            "test": event.get("test"),
-            "data": event.get("data", {}),
-        }
+        if self._kind == "workout":
+            w = state.last_workout() or {}
+            return {
+                "date": w.get("d"),
+                "volume": w.get("vol"),
+                "sets": sum(
+                    len(e.get("sets") or [])
+                    for e in w.get("entries") or []
+                ),
+            }
+        if self._kind == "next":
+            nxt = state.next_session(date.today())
+            if nxt:
+                routine, day = nxt
+                return {
+                    "routine_id": routine.get("id"),
+                    "exercises": len(routine.get("ex") or []),
+                    "date": day.isoformat(),
+                }
+        if self._kind == "weighin":
+            b = state.last_weighin() or {}
+            return {"date": b.get("d")}
+        return {}
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self.async_write_ha_state()
+
+class MuscleDaysSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
+    """Days since a muscle group was last trained (999 = never)."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_icon = "mdi:human-handsup"
+
+    def __init__(self, coordinator, entry, muscle: str, label: str) -> None:
+        super().__init__(coordinator)
+        self._muscle = muscle
+        self._attr_translation_key = f"muscle_{muscle.replace('-', '_')}"
+        self._attr_name = f"{label} idle"
+        self._attr_unique_id = f"{entry.entry_id}_muscle_{muscle}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self) -> int | None:
+        state = self.coordinator.data
+        if state is None:
+            return None
+        return state.muscle_days(date.today()).get(self._muscle)

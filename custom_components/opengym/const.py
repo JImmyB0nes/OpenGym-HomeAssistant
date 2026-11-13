@@ -30,35 +30,36 @@ EVENT_TYPES: Final = {
     "weighin.logged": "opengym_weighin_logged",
 }
 
-# Reverse: HA event name -> openGym type (for device triggers)
-HA_EVENT_TO_OPENGYM: Final = {v: k for k, v in EVENT_TYPES.items()}
-
 # Max clock skew accepted in the signature timestamp (seconds)
 SIGNATURE_MAX_AGE = 300
 
 DEFAULT_POLL_INTERVAL = 15  # minutes
 MIN_POLL_INTERVAL = 1
-SCAN_INTERVAL = timedelta(minutes=DEFAULT_POLL_INTERVAL)
-
-STORAGE_VERSION = 1
+MAX_POLL_INTERVAL = 1440
 
 # Services
 SERVICE_LOG_WEIGHIN = "log_weighin"
 SERVICE_TRIGGER_TEST = "trigger_test_event"
 
-# Muscle groups we surface for the coverage / recovery sensors. These follow the
-# coarse grouping openGym's own muscle map uses; the key is the catalogue tag,
-# the value is the display name.
-MUSCLE_GROUPS: Final[dict[str, str]] = {
+# Muscle groups from openGym's exercise-muscle map (primaries vocabulary).
+MUSCLES: Final[dict[str, str]] = {
     "chest": "Chest",
-    "back": "Back",
-    "shoulders": "Shoulders",
+    "upper-back": "Upper Back",
+    "lower-back": "Lower Back",
+    "trapezius": "Traps",
+    "deltoids": "Shoulders",
     "biceps": "Biceps",
     "triceps": "Triceps",
-    "legs": "Legs",
-    "glutes": "Glutes",
-    "core": "Core",
     "forearms": "Forearms",
-    "traps": "Traps",
-    "lats": "Lats",
+    "quadriceps": "Quadriceps",
+    "hamstring": "Hamstrings",
+    "adductors": "Adductors",
+    "calves": "Calves",
+    "gluteal": "Glutes",
+    "abs": "Core",
 }
+
+# Days a muscle counts as still recovering after being trained.
+RECOVERY_DAYS = 2
+
+SCAN_INTERVAL = timedelta(minutes=DEFAULT_POLL_INTERVAL)

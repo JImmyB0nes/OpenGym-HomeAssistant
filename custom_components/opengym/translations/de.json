@@ -2,19 +2,170 @@
   "config": {
     "step": {
       "user": {
-        "title": "openGym einrichten",
-        "description": "Lege zuerst in openGym unter Einstellungen → Integrationen → Webhooks einen Webhook zu dieser Instanz an und füge das einmalig angezeigte Signing Secret ein. Die Webhook-URL wird nach dem Anlegen dieser Integration angezeigt.",
+        "title": "openGym verbinden",
+        "description": "Adresse deiner openGym-Instanz (https://github.com/DuarteSantos8/openGym).",
         "data": {
+          "url": "URL"
+        }
+      },
+      "pair": {
+        "title": "openGym koppeln",
+        "description": "Code in openGym erstellen: Einstellungen → Integrationen → „Die App koppeln“.\nWebhook-Empfang optional: Signing Secret aus Einstellungen → Integrationen → Webhooks hier eintragen.",
+        "data": {
+          "code": "Pairing-Code",
           "name": "Name",
-          "secret": "Signing Secret (optional, Hex)"
+          "secret": "Signing Secret (optional)"
         }
       }
     },
     "error": {
-      "invalid_secret": "Das Signing Secret darf nur Hex-Zeichen enthalten."
+      "cannot_connect": "openGym ist unter dieser URL nicht erreichbar.",
+      "invalid_code": "Code falsch oder abgelaufen (5 Minuten gültig)."
     },
     "abort": {
-      "already_configured": "Diese Instanz ist bereits eingerichtet."
+      "already_configured": "Diese Instanz ist bereits eingerichtet.",
+      "reauth_successful": "Neuer Token erfolgreich geholt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval": "Poll-Intervall (Minuten)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_workout": {
+        "name": "Letztes Workout"
+      },
+      "last_record": {
+        "name": "Letzter Personal Record"
+      },
+      "last_weighin": {
+        "name": "Letzte Wiegewägung"
+      },
+      "week_volume": {
+        "name": "Volumen diese Woche"
+      },
+      "week_workouts": {
+        "name": "Workouts diese Woche"
+      },
+      "streak": {
+        "name": "Workout-Streak"
+      },
+      "next_session": {
+        "name": "Nächste Einheit"
+      },
+      "total_lifting": {
+        "name": "Gesamt gehoben"
+      },
+      "muscle_chest": {
+        "name": "Brust Trainingspause"
+      },
+      "muscle_upper_back": {
+        "name": "Oberer Rücken Trainingspause"
+      },
+      "muscle_lower_back": {
+        "name": "Unterer Rücken Trainingspause"
+      },
+      "muscle_trapezius": {
+        "name": "Trapez Trainingspause"
+      },
+      "muscle_deltoids": {
+        "name": "Schultern Trainingspause"
+      },
+      "muscle_biceps": {
+        "name": "Bizeps Trainingspause"
+      },
+      "muscle_triceps": {
+        "name": "Triceps Trainingspause"
+      },
+      "muscle_forearms": {
+        "name": "Unterarme Trainingspause"
+      },
+      "muscle_quadriceps": {
+        "name": "Beinstrecker Trainingspause"
+      },
+      "muscle_hamstring": {
+        "name": "Kniebeugen Trainingspause"
+      },
+      "muscle_adductors": {
+        "name": "Adduktoren Trainingspause"
+      },
+      "muscle_calves": {
+        "name": "Waden Trainingspause"
+      },
+      "muscle_gluteal": {
+        "name": "Gesäß Trainingspause"
+      },
+      "muscle_abs": {
+        "name": "Core Trainingspause"
+      }
+    },
+    "binary_sensor": {
+      "rest_day": {
+        "name": "Ruhetag"
+      },
+      "muscle_chest_recovering": {
+        "name": "Brust in Erholung"
+      },
+      "muscle_upper_back_recovering": {
+        "name": "Oberer Rücken in Erholung"
+      },
+      "muscle_lower_back_recovering": {
+        "name": "Unterer Rücken in Erholung"
+      },
+      "muscle_trapezius_recovering": {
+        "name": "Trapez in Erholung"
+      },
+      "muscle_deltoids_recovering": {
+        "name": "Schultern in Erholung"
+      },
+      "muscle_biceps_recovering": {
+        "name": "Bizeps in Erholung"
+      },
+      "muscle_triceps_recovering": {
+        "name": "Triceps in Erholung"
+      },
+      "muscle_forearms_recovering": {
+        "name": "Unterarme in Erholung"
+      },
+      "muscle_quadriceps_recovering": {
+        "name": "Beinstrecker in Erholung"
+      },
+      "muscle_hamstring_recovering": {
+        "name": "Kniebeugen in Erholung"
+      },
+      "muscle_adductors_recovering": {
+        "name": "Adduktoren in Erholung"
+      },
+      "muscle_calves_recovering": {
+        "name": "Waden in Erholung"
+      },
+      "muscle_gluteal_recovering": {
+        "name": "Gesäß in Erholung"
+      },
+      "muscle_abs_recovering": {
+        "name": "Core in Erholung"
+      }
+    },
+    "calendar": {
+      "training_plan": {
+        "name": "Trainingsplan"
+      }
+    }
+  },
+  "services": {
+    "log_weighin": {
+      "name": "Wiegewägung protokollieren",
+      "description": "Trägt eine Wiegewägung in openGym ein (Waage → openGym)."
+    },
+    "trigger_test_event": {
+      "name": "Test-Event senden",
+      "description": "Lässt openGym sofort ein Test-Webhook-Event zustellen."
     }
   }
 }

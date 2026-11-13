@@ -1,39 +1,178 @@
-"""Coordinator holding the latest openGym events for sensors."""
+"""State polling and derived values for openGym.
+
+Polls `GET /api/data` (the whole app state) and exposes workouts, weigh-ins,
+the weekly plan and muscle coverage to the platforms.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Callable
+import json
+import logging
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import EVENT_TYPES
+from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
+from .const import DOMAIN, MUSCLES, RECOVERY_DAYS, SCAN_INTERVAL
+
+_LOGGER = logging.getLogger(__name__)
 
 
-class OpenGymCoordinator:
-    """Track the most recent event of each openGym event type."""
+def _load_muscle_map() -> dict[str, dict[str, Any]]:
+    try:
+        raw = (Path(__file__).parent / "muscle_map.json").read_text()
+        return json.loads(raw)
+    except (FileNotFoundError, ValueError) as err:  # pragma: no cover
+        _LOGGER.warning("openGym: muscle map unavailable (%s)", err)
+        return {}
 
-    def __init__(self, hass: HomeAssistant) -> None:
-        self.hass = hass
-        self.listeners: set[Callable[[], None]] = set()
-        # event_type -> last event dict
-        self.last: dict[str, dict[str, Any]] = {}
 
-    def update(self, event_type: str, event: dict[str, Any]) -> None:
-        """Remember the newest event of its kind."""
-        self.last[event_type] = event
+_MUSCLE_MAP = _load_muscle_map()
+
+
+def _day(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+
+
+class OpenGymState:
+    """A parsed snapshot of the user's app state."""
+
+    def __init__(self, state: dict[str, Any] | None) -> None:
+        self.raw = state or {}
+        self.unit: str = self.raw.get("unit", "kg")
+        self.workouts: list[dict[str, Any]] = sorted(
+            self.raw.get("workouts") or [], key=lambda w: w.get("d") or ""
+        )
+        self.bodyweight: list[dict[str, Any]] = sorted(
+            self.raw.get("bodyweight") or [], key=lambda b: b.get("d") or ""
+        )
+        self.routines: dict[str, dict[str, Any]] = {
+            r["id"]: r for r in (self.raw.get("routines") or []) if "id" in r
+        }
+        # weekday 0=Sunday .. 6=Saturday -> routine id (openGym's `week`)
+        self.week: dict[int, str] = {
+            int(k): v for k, v in (self.raw.get("week") or {}).items()
+        }
+        self.day_plan: dict[str, str] = self.raw.get("dayPlan") or {}
+
+    # --- workouts ---------------------------------------------------------
+
+    def last_workout(self) -> dict[str, Any] | None:
+        return self.workouts[-1] if self.workouts else None
+
+    def workouts_between(self, start: date, end: date) -> list[dict[str, Any]]:
+        return [w for w in self.workouts if (_day(w.get("d")) and start <= _day(w.get("d")) <= end)]
+
+    def week_volume(self, today: date) -> float:
+        monday = today - timedelta(days=today.weekday())
+        return sum(w.get("vol") or 0 for w in self.workouts_between(monday, today))
+
+    def week_count(self, today: date) -> int:
+        monday = today - timedelta(days=today.weekday())
+        return len(self.workouts_between(monday, today))
+
+    def streak(self, today: date) -> int:
+        """Workout days in a row, counting back from today (or yesterday)."""
+        days = {_day(w.get("d")) for w in self.workouts}
+        days.discard(None)
+        if today not in days and (today - timedelta(days=1)) not in days:
+            return 0
+        cursor = today if today in days else today - timedelta(days=1)
+        count = 0
+        while cursor in days:
+            count += 1
+            cursor -= timedelta(days=1)
+        return count
+
+    # --- weigh-ins ----------------------------------------------------------
+
+    def last_weighin(self) -> dict[str, Any] | None:
+        return self.bodyweight[-1] if self.bodyweight else None
+
+    # --- plan ---------------------------------------------------------------
+
+    def routine_for(self, day: date) -> dict[str, Any] | None:
+        planned = self.day_plan.get(day.isoformat())
+        if planned is None:
+            # openGym numbers weekdays Sunday=0 .. Saturday=6.
+            planned = self.week.get((day.weekday() + 1) % 7)
+        if not planned or planned == "rest":
+            return None
+        return self.routines.get(planned)
+
+    def next_session(self, today: date) -> tuple[dict[str, Any], date] | None:
+        """First planned routine from today on, up to 14 days out."""
+        for offset in range(15):
+            day = today + timedelta(days=offset)
+            if routine := self.routine_for(day):
+                return routine, day
+        return None
+
+    # --- muscle coverage ----------------------------------------------------
+
+    def muscle_days(self, today: date) -> dict[str, int]:
+        """Days since each muscle group was last trained (primaries + weighted
+        secondaries). Muscles never trained get 999."""
+        last: dict[str, date] = {}
+        for workout in reversed(self.workouts):
+            day = _day(workout.get("d"))
+            if not day:
+                continue
+            for entry in workout.get("entries") or []:
+                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                if not info:
+                    continue
+                muscles = set(info.get("primaries") or [])
+                weights = info.get("muscleWeights") or {}
+                muscles |= {m for m, w in weights.items() if w and w >= 0.3}
+                for muscle in muscles:
+                    last.setdefault(muscle, day)
+            if len(last) >= len(MUSCLES):
+                break
+        return {
+            muscle: (today - last[muscle]).days if muscle in last else 999
+            for muscle in MUSCLES
+        }
+
+
+class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
+    """Polls openGym's state document."""
+
+    def __init__(self, hass: HomeAssistant, entry, client: OpenGymApiClient) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_{entry.entry_id}",
+            update_interval=SCAN_INTERVAL,
+        )
+        self.client = client
+        self.entry = entry
+        # webhook deliveries land here; merged into the polled state
+        self.pending_events: list[dict[str, Any]] = []
+
+    async def _async_update_data(self) -> OpenGymState:
+        try:
+            state, rev = await self.client.get_state()
+        except OpenGymError as err:
+            raise UpdateFailed(f"openGym polling failed: {err}") from err
+        snapshot = OpenGymState(state)
+        snapshot._rev = rev  # noqa: SLF001  (needed for conditional writes)
+        return snapshot
 
     @callback
-    def async_get_last(self, event_type: str) -> dict[str, Any] | None:
-        """Return the last event of a type, or None."""
-        return self.last.get(event_type)
-
-    @callback
-    def async_listen(self, listener: Callable[[], None]) -> Callable[[], None]:
-        """Register a listener notified when any event arrives."""
-        self.listeners.add(listener)
-
-        @callback
-        def _remove() -> None:
-            self.listeners.discard(listener)
-
-        return _remove
+    def ingest_event(self, event_type: str, event: dict[str, Any]) -> None:
+        """Remember the newest webhook delivery of each type between polls."""
+        self.pending_events = [
+            e for e in self.pending_events if e.get("type") != event_type
+        ]
+        self.pending_events.append({"type": event_type, **event})
+        if self.data:
+            self.async_update_listeners()

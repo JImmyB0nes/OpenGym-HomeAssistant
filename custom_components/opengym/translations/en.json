@@ -2,19 +2,170 @@
   "config": {
     "step": {
       "user": {
-        "title": "openGym einrichten",
-        "description": "Lege zuerst unter Einstellungen → Integrationen → Webhooks in openGym einen Webhook auf diese Instanz an und füge das einmalig angezeigte Signing Secret ein. Die Webhook-URL wird nach dem Anlegen dieser Integration angezeigt.",
+        "title": "Connect openGym",
+        "description": "The address of your openGym instance (https://github.com/DuarteSantos8/openGym).",
         "data": {
+          "url": "URL"
+        }
+      },
+      "pair": {
+        "title": "Pair openGym",
+        "description": "Code in openGym erstellen: Einstellungen → Integrationen → „Die App koppeln“.\nOptional webhook hardening: paste the signing secret from Settings -> Integrations -> Webhooks.",
+        "data": {
+          "code": "Pairing-Code",
           "name": "Name",
-          "secret": "Signing Secret (optional, hex)"
+          "secret": "Signing Secret (optional)"
         }
       }
     },
     "error": {
-      "invalid_secret": "Das Signing Secret darf nur Hex-Zeichen enthalten."
+      "cannot_connect": "openGym is not reachable at this URL.",
+      "invalid_code": "Code wrong or expired (valid 5 minutes)."
     },
     "abort": {
-      "already_configured": "Diese Instanz ist bereits eingerichtet."
+      "already_configured": "This instance is already configured.",
+      "reauth_successful": "New token obtained successfully."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval": "Poll interval (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_workout": {
+        "name": "Last workout"
+      },
+      "last_record": {
+        "name": "Last personal record"
+      },
+      "last_weighin": {
+        "name": "Last weigh-in"
+      },
+      "week_volume": {
+        "name": "Volume this week"
+      },
+      "week_workouts": {
+        "name": "Workouts this week"
+      },
+      "streak": {
+        "name": "Workout streak"
+      },
+      "next_session": {
+        "name": "Next session"
+      },
+      "total_lifting": {
+        "name": "Total lifted"
+      },
+      "muscle_chest": {
+        "name": "Chest idle days"
+      },
+      "muscle_upper_back": {
+        "name": "Upper back idle days"
+      },
+      "muscle_lower_back": {
+        "name": "Lower back idle days"
+      },
+      "muscle_trapezius": {
+        "name": "Traps idle days"
+      },
+      "muscle_deltoids": {
+        "name": "Shoulders idle days"
+      },
+      "muscle_biceps": {
+        "name": "Biceps idle days"
+      },
+      "muscle_triceps": {
+        "name": "Triceps idle days"
+      },
+      "muscle_forearms": {
+        "name": "Forearms idle days"
+      },
+      "muscle_quadriceps": {
+        "name": "Quadriceps idle days"
+      },
+      "muscle_hamstring": {
+        "name": "Hamstrings idle days"
+      },
+      "muscle_adductors": {
+        "name": "Adductors idle days"
+      },
+      "muscle_calves": {
+        "name": "Calves idle days"
+      },
+      "muscle_gluteal": {
+        "name": "Glutes idle days"
+      },
+      "muscle_abs": {
+        "name": "Core idle days"
+      }
+    },
+    "binary_sensor": {
+      "rest_day": {
+        "name": "Rest day"
+      },
+      "muscle_chest_recovering": {
+        "name": "Chest recovering"
+      },
+      "muscle_upper_back_recovering": {
+        "name": "Upper back recovering"
+      },
+      "muscle_lower_back_recovering": {
+        "name": "Lower back recovering"
+      },
+      "muscle_trapezius_recovering": {
+        "name": "Traps recovering"
+      },
+      "muscle_deltoids_recovering": {
+        "name": "Shoulders recovering"
+      },
+      "muscle_biceps_recovering": {
+        "name": "Biceps recovering"
+      },
+      "muscle_triceps_recovering": {
+        "name": "Triceps recovering"
+      },
+      "muscle_forearms_recovering": {
+        "name": "Forearms recovering"
+      },
+      "muscle_quadriceps_recovering": {
+        "name": "Quadriceps recovering"
+      },
+      "muscle_hamstring_recovering": {
+        "name": "Hamstrings recovering"
+      },
+      "muscle_adductors_recovering": {
+        "name": "Adductors recovering"
+      },
+      "muscle_calves_recovering": {
+        "name": "Calves recovering"
+      },
+      "muscle_gluteal_recovering": {
+        "name": "Glutes recovering"
+      },
+      "muscle_abs_recovering": {
+        "name": "Core recovering"
+      }
+    },
+    "calendar": {
+      "training_plan": {
+        "name": "Training plan"
+      }
+    }
+  },
+  "services": {
+    "log_weighin": {
+      "name": "Log weigh-in",
+      "description": "Logs a weigh-in into openGym (scale -> openGym)."
+    },
+    "trigger_test_event": {
+      "name": "Send test event",
+      "description": "Makes openGym deliver a test webhook event right away."
     }
   }
 }

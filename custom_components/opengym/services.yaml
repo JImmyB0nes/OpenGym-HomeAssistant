@@ -1,0 +1,36 @@
+log_weighin:
+  fields:
+    weight:
+      required: true
+      example: 80.4
+      selector:
+        number:
+          mode: box
+          step: 0.1
+    unit:
+      selector:
+        select:
+          options:
+            - kg
+            - lb
+          mode: dropdown
+      default: kg
+    date:
+      selector:
+        date:
+    entry_id:
+      example: 01ABCDEF...
+
+trigger_test_event:
+  fields:
+    event_type:
+      selector:
+        select:
+          options:
+            - workout.finished
+            - workout.pr
+            - weighin.logged
+          mode: dropdown
+      default: workout.finished
+    entry_id:
+      example: 01ABCDEF...
