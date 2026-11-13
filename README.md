@@ -1,118 +1,194 @@
-# openGym – Home Assistant Integration
+<div align="center">
 
-Home Assistant Custom Integration für [openGym](https://github.com/DuarteSantos8/openGym).
+<img src="brand/logo.png" alt="openGym Logo" width="180" />
 
-openGym sendet bei **abgeschlossenem Workout**, **neuem Personal Record** und **Wiegen** signierte Webhooks – die Integration nimmt sie entgegen, feuert Events auf dem HA-Ereignisbus und pollt zusätzlich den kompletten Kontostand (`/api/data`): Trainingsplan, Muskelabdeckung, Streaks und Services.
+# openGym für Home Assistant
+
+**Trainingsdaten live im Smart Home.**
+
+[![GitHub Release](https://img.shields.io/github/v/tag/JImmyB0nes/OpenGym-HomeAssistant?label=Release&color=a3e635)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/releases)
+[![License](https://img.shields.io/badge/Lizenz-MIT-gray)](LICENSE)
+[![openGym](https://img.shields.io/badge/openGym-DuarteSantos8%2FopenGym-163?logo=homeassistant&logoColor=white)](https://github.com/DuarteSantos8/openGym)
+
+</div>
+
+Diese Integration verbindet eine [**openGym**](https://github.com/DuarteSantos8/openGym)-Instanz mit Home Assistant — dein Workout, dein Streak und deine Fortschritte lösen dann Automationen aus, statt in der App zu liegen.
+
+Sie funktioniert zweigleisig:
+
+| | |
+|---|---|
+| ⚡ **Echtzeit** | openGym sendet signierte Webhooks bei *Workout beendet*, *neuem Rekord* und *Wiegen* |
+| 🔄 **Im Hintergrund** | Pollen der openGym-API liefert Plan, Muskelabdeckung, Bestgewichte und Streaks |
+
+## Features
+
+- 🏋️ **12 Stamm-Sensoren** — letztes Workout, Wochen-Volumen, Streak, nächste Einheit, Zielgewicht u.v.m.
+- 💪 **28 Muskel-Sensoren** — Idle-Tage und Erholungsstatus für 14 Muskelgruppen, aus openGyms echter Muskelkarte (246 Übungen)
+- 📅 **Kalender** — der Wochentagsplan als Entität, die jeder Karten- und Kalender-Card versteht
+- 🔔 **Device-Trigger & -Actions** — Automationen ohne YAML: *„Wenn das openGym-Gerät ein Workout abschließt …“*
+- ⚖️ **Zwei-Wege** — `log_weighin` schreibt die Waage zurück in openGym, `trigger_test_event` testet die Leitung
+- 🔐 **Abgesichert** — HMAC-SHA256-Signaturprüfung, Pairing-Code statt Passwort, Token-Rotation
 
 ## Installation
 
-Am einfachsten über [HACS](https://hacs.xyz/) (Custom Repository, Kategorie *Integration*).
-Alternativ `custom_components/opengym/` ins HA-Konfigurationsverzeichnis kopieren und HA neu starten.
+### HACS *(empfohlen)*
+
+1. HACS → **⋮ → Custom Repositories** → Repository `JImmyB0nes/OpenGym-HomeAssistant`, Kategorie *Integration*
+2. Im Reiter **Integrationen** → *openGym* → **Download**
+3. Home Assistant neu starten
+
+### Manuell
+
+```bash
+git clone https://github.com/JImmyB0nes/OpenGym-HomeAssistant
+cp -r OpenGym-HomeAssistant/custom_components/opengym <config>/custom_components/
+```
 
 ## Einrichten
 
-1. **openGym-Server vorbereiten** (nur selbst gehostet, Webhooks brauchen einen Server):
-   in der `.env` der openGym-Instanz
-   ```
-   INTEGRATIONS=webhook
-   INTEGRATIONS_ALLOW_LAN=1   # nur noetig, wenn HA im selben LAN erreichbar ist
-   ```
-   danach den `api`-Container neu starten.
+### 1. openGym vorbereiten
 
-2. **In HA:** Einstellungen → Geräte & Dienste → Integration hinzufügen → **openGym**.
-   URL der Instanz eingeben.
+Webhooks gibt es nur auf der selbst gehosteten Instanz. In der `.env`:
 
-3. **Koppeln:** In openGym unter Einstellungen → Integrationen → *„Die App koppeln“*
-   einen Code erstellen (5 Min. gültig) und im Config-Flow eintragen. Optional das
-   Signing Secret aus den Webhooks mitgeben. Danach legt HA den Webhook-Pfad an — die
-   URL (`/api/webhook/...`) wird auf der Integrationsseite angezeigt und muss in
-   openGym unter Einstellungen → Integrationen → Webhooks als Webhook eingetragen
-   werden (sonst kommen keine Push-Events an).
+```ini
+INTEGRATIONS=webhook
+INTEGRATIONS_ALLOW_LAN=1   # nur, wenn HA im selben LAN liegt
+```
 
-## Sensoren
+Danach den `api`-Container neu starten.
 
-Stamm-Sensoren (Webhooks + Polling von `/api/data`):
+### 2. In Home Assistant hinzufügen
 
-| Entity | Zustand |
+**Einstellungen → Geräte & Dienste → Integration hinzufügen → openGym** — URL der Instanz eintragen.
+
+### 3. Koppeln
+
+In openGym unter *Einstellungen → Integrationen → „Die App koppeln“* einen Code erstellen (5 Min. gültig) und im Dialog eingeben. Optional das Signing Secret der Webhooks mitgeben.
+
+Anschließend zeigt die Integrationsseite die **Webhook-URL** (`/api/webhook/…`) — diese in openGym unter *Einstellungen → Integrationen → Webhooks* als Webhook eintragen, damit die Live-Events ankommen.
+
+## Was die Integration anlegt
+
+### Sensoren
+
+| Entität | Anzeigen |
 |---|---|
-| `sensor.opengym_last_workout` | Name des letzten Workouts (Attribute: Datum, Volumen, Saetze) |
-| `sensor.opengym_last_record` | PRs des letzten Workouts |
-| `sensor.opengym_last_weighin` | Gewicht als echter Wiegesensor (kg) |
-| `sensor.opengym_week_volume` | Volumen diese Woche (kg) |
-| `sensor.opengym_week_workouts` | Workouts diese Woche |
+| `sensor.opengym_last_workout` | letztes Workout (Datum, Volumen, Sätze als Attribute) |
+| `sensor.opengym_last_record` | Rekorde des letzten Workouts |
+| `sensor.opengym_last_weighin` | Gewicht — echter Wiegesensor, für Energie-Dashboard & Co. |
+| `sensor.opengym_week_volume` | Volumen dieser Woche (kg) |
+| `sensor.opengym_week_workouts` | Einheiten dieser Woche |
 | `sensor.opengym_streak` | Trainingstage in Folge |
-| `sensor.opengym_next_session` | `Push - 2026-11-16` oder `Rest` |
-| `sensor.opengym_total_lifting` | Gehobenes Gesamtvolumen (kg) |
-| `sensor.opengym_goal_weight` | Zielgewicht (Attribute: `delta`, `at_or_below_goal`) |
-| `sensor.opengym_days_since_workout` | Tage seit der letzten Einheit |
-| `sensor.opengym_personal_records` | Anzahl geführter Bestgewichte (alle je Übung als Attribut) |
-| `sensor.opengym_workout_heart_rate` | Ø Puls des letzten Workouts, wenn HF-Saetze vorhanden |
+| `sensor.opengym_days_since_workout` | Tage ohne Training — für Erinnerungen |
+| `sensor.opengym_next_session` | `Push · 2026-11-16` oder `Rest` |
+| `sensor.opengym_total_lifting` | jemals gehobenes Volumen |
+| `sensor.opengym_goal_weight` | Zielgewicht mit `delta` und `at_or_below_goal` |
+| `sensor.opengym_personal_records` | Anzahl Bestgewichte, alle je Übung als Attribut |
+| `sensor.opengym_workout_heart_rate` | Ø Puls des letzten Workouts (wenn HF-Sätze vorhanden) |
 
-Muskel-Abdeckung (14 Gruppen, aus openGyms Muskelkarte, 246 Uebungen):
+### Muskeln & Erholung
 
-* `sensor.opengym_muscle_<gruppe>` - Tage seit der letzten Einheit (999 = nie)
-* `binary_sensor.opengym_muscle_<gruppe>_recovering` - `on`, solange die Gruppe noch in Erholung ist (<= 2 Tage)
+Aus openGyms Muskelkarte für 246 Übungen, abgedeckt 14 Gruppen (`chest`, `deltoids`, `hamstring`, `abs`, …):
 
-Dazu:
+- `sensor.opengym_muscle_<gruppe>` — Tage seit der letzten Einheit (`999` = noch nie)
+- `binary_sensor.opengym_muscle_<gruppe>_recovering` — `on`, solange die Gruppe (< 2 Tage) noch erholt
+- `binary_sensor.opengym_rest_day` — `on`, wenn heute keine Einheit geplant ist
+- `calendar.opengym_training_plan` — Wochenplan inkl. Tages-Overrides
 
-* `binary_sensor.opengym_rest_day` - `on`, wenn heute keine Einheit geplant ist
-* `calendar.opengym_training_plan` - Wochentagsplan (mit Tages-Overrides) als Kalender
+### Automationen ohne YAML
 
-## Device-Automation
+Das Gerät **openGym** bietet im Automation-Editor:
 
-Das Gerät „openGym“ stellt im Automation-Editor bereit:
+| | |
+|---|---|
+| **Auslöser** | Workout abgeschlossen · Neuer persönlicher Rekord · Wiegewägung erfasst |
+| **Aktion** | Wiegewägung protokollieren |
 
-* **Auslöser:** „Workout abgeschlossen“, „Neuer persönlicher Rekord“, „Wiegewägung erfasst“ (filterbar nach echten vs. Test-Lieferungen)
-* **Aktion:** „Wiegewägung protokollieren“ (ruft `opengym.log_weighin` auf dem Gerät auf)
-
-## Services
+### Services
 
 ```yaml
 action: opengym.log_weighin
-data: { weight: 80.4, unit: kg }          # Wiegen -> openGym zurueck schreiben
+data:
+  weight: 80.4        # kg oder lb, je nach unit
+  unit: kg
+  date: "2026-11-13"  # optional, Standard: heute
 
 action: opengym.trigger_test_event
-data: { event_type: workout.finished }    # openGym schickt sofort ein Test-Event
+data:
+  event_type: workout.finished
 ```
 
-## Events
+### Events
 
-| Ereignistyp | HA-Event |
+Für alle, die es genau wissen wollen:
+
+| openGym-Ereignis | HA-Ereignis |
 |---|---|
 | `workout.finished` | `opengym_workout_finished` |
 | `workout.pr` | `opengym_personal_record` |
 | `weighin.logged` | `opengym_weighin_logged` |
 
-Beispiel-Automation:
+## Beispiele
+
+**Licht anspringen, wenn das Training fertig ist:**
 
 ```yaml
 automation:
-  - alias: "Workout abgeschlossen – Licht"
+  - alias: "Workout geschafft"
     triggers:
-      - trigger: event
-        event_type: opengym_workout_finished
+      - trigger: device
+        device_id: !device_id opengym   # oder: Trigger-Gerät im Editor wählen
+        domain: opengym
+        type: workout_finished
     actions:
       - action: light.turn_on
-        target: { entity_id: light.bad }
+        target: { entity_id: light.wohnzimmer }
         data:
-          message: >
-            {{ trigger.json.data.workout.name }} fertig,
-            {{ trigger.json.data.workout.totals.volume }} kg Volume!
+          brightness: 200
+```
+
+**Erinnerung, wenn zu lange nichts lief:**
+
+```yaml
+automation:
+  - alias: "Ab ins Gym"
+    triggers:
+      - trigger: state
+        entity_id: sensor.opengym_days_since_workout
+        above: 4
+    actions:
+      - action: notify.mobile_app
+        data:
+          message: "Seit 5 Tagen kein Training. Nächste Einheit: {{ states('sensor.opengym_next_session') }}"
+```
+
+**Waage automatisch zurückschreiben:**
+
+```yaml
+automation:
+  - alias: "Morgendliche Waage"
+    triggers:
+      - trigger: state
+        entity_id: sensor.smart_scale_weight
+    actions:
+      - action: opengym.log_weighin
+        data:
+          weight: "{{ trigger.to_state.state | float }}"
 ```
 
 ## Sicherheit
 
-- Die Webhook-URL selbst ist das eigentliche Geheimnis – nie weitergeben.
-- Wird ein Signing Secret hinterlegt, prueft die Integration den `X-OpenGym-Signature`
-  Header (HMAC-SHA256, `t=<unix>,v1=<hex>`, Zeitfenster 5 min) und verwirft unpassende
-  Sendungen.
+- Die **Webhook-URL ist das Geheimnis** — sie ist einmalig, lang und nicht erratbar.
+- Mit hinterlegtem **Signing Secret** prüft die Integration jeden Aufruf: `X-OpenGym-Signature` als HMAC-SHA256 über `t=<zeit>.<body>`, Zeitfenster 5 Minuten, Timing-safe verglichen. Unpassende Sendungen werden verworfen.
+- **Keine Passwörter:** der Zugriff läuft über einen Pairing-Code, der Token wird automatisch erneuert.
 
 ## Hinweise
 
-- Erreichbarkeit: openGym akzeptiert nur HTTPS – oder `http://`, wenn `INTEGRATIONS_ALLOW_LAN=1` gesetzt ist und HA im LAN liegt.
-- openGym antwortet mit beliebigem `2xx`; die Integration liefert das standardmaessig aus.
-- Duplikate koennen durch openGyms „at least once“-Zustellung auftreten – `event_id` zur Identifikation verwenden.
+- openGym liefert nur **HTTPS** aus — oder `http://` ins LAN, wenn `INTEGRATIONS_ALLOW_LAN=1` gesetzt ist.
+- openGym liefert „mindestens einmal“ — Duplikate lassen sich über `event_id` erkennen.
+- Poll-Intervall (Standard 15 Min.) einstellbar über die **Optionen** der Integration.
 
 ## Lizenz
 
-MIT für diesen Integrationsteil; openGym selbst steht unter AGPL-3.0.
+Diese Integration: **MIT**. openGym selbst steht unter **AGPL-3.0** — und das gezeigte Logo ist das offizielle openGym-Icon von [DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym).
