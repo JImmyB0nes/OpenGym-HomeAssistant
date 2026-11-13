@@ -89,7 +89,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             self._attr_icon = "mdi:pencil-ruler"
         elif kind == "balance":
             self._attr_icon = "mdi:human-handsup"
-            self._attr_state_class = SensorStateClass.TOTAL
+            # Weekly volume resets each week — a measurement, not a counter.
+            self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = "sets"
         elif kind in ("volume", "total"):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
