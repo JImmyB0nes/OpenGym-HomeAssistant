@@ -33,6 +33,8 @@ STATIC_SENSORS = (
     ("days_since_workout", "Days since last workout", "days_since"),
     ("personal_records", "Personal records", "prs"),
     ("workout_heart_rate", "Workout heart rate", "hr"),
+    ("best_one_rm", "Estimated 1RM", "one_rm"),
+    ("custom_exercises", "Custom exercises", "custom_ex"),
 )
 
 
@@ -80,6 +82,10 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         elif kind == "hr":
             self._attr_native_unit_of_measurement = "bpm"
             self._attr_icon = "mdi:heart-pulse"
+        elif kind == "one_rm":
+            self._attr_icon = "mdi:weight"
+        elif kind == "custom_ex":
+            self._attr_icon = "mdi:pencil-ruler"
         elif kind in ("volume", "total"):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif kind == "count":
@@ -100,7 +106,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
 
     @property
     def native_unit_of_measurement(self) -> str | None:
-        if self._kind in ("weighin", "volume", "total", "goal"):
+        if self._kind in ("weighin", "volume", "total", "goal", "one_rm"):
             state = self.coordinator.data
             if state and state.unit == "lb":
                 return UnitOfMass.POUNDS
@@ -152,6 +158,11 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "hr":
             hr = state.last_workout_hr()
             return hr["avg"] if hr else None
+        if self._kind == "one_rm":
+            best = state.best_1rm()
+            return round(max(best.values()), 1) if best else None
+        if self._kind == "custom_ex":
+            return state.custom_ex_count()
         return None
 
     @property
@@ -205,6 +216,16 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "days_since":
             day = state.last_workout_day()
             return {"last_workout": day.isoformat() if day else None}
+        if self._kind == "one_rm":
+            return {
+                ex_id: round(est, 1) for ex_id, est in sorted(state.best_1rm().items())
+            }
+        if self._kind == "custom_ex":
+            return {
+                str(ex.get("id")): ex.get("n")
+                for ex in (state.raw.get("customEx") or [])
+                if ex.get("n")
+            }
         return {}
 
 

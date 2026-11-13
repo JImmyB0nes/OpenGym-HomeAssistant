@@ -16,7 +16,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
-from .const import DOMAIN, MUSCLES, RECOVERY_DAYS, SCAN_INTERVAL
+from .const import DOMAIN, EPLEY_K, MUSCLES, RECOVERY_DAYS, SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,6 +112,24 @@ class OpenGymState:
         w = self.last_workout()
         return _day(w.get("d")) if w else None
 
+    def best_1rm(self) -> dict[str, float]:
+        """Epley 1RM estimate per exercise id, best set wins."""
+        best: dict[str, float] = {}
+        for workout in self.workouts:
+            for entry in workout.get("entries") or []:
+                ex_id = str(entry.get("id"))
+                for s in entry.get("sets") or []:
+                    w, r = s.get("w"), s.get("r")
+                    if not isinstance(w, (int, float)) or not w:
+                        continue
+                    est = w * (1 + (r or 0) / EPLEY_K)
+                    if est > best.get(ex_id, 0):
+                        best[ex_id] = est
+        return best
+
+    def custom_ex_count(self) -> int:
+        return len(self.raw.get("customEx") or [])
+
     def pr_map(self) -> dict[str, dict[str, Any]]:
         """Best logged weight per exercise (openGym's `exWeights`)."""
         out: dict[str, dict[str, Any]] = {}
@@ -198,15 +216,43 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         self.entry = entry
         # webhook deliveries land here; merged into the polled state
         self.pending_events: list[dict[str, Any]] = []
+        # live presence (admin endpoint, None when not admin)
+        self.uid: str | None = None
+        self.is_admin: bool | None = None
+        self.presence: dict[str, Any] | None = None
 
     async def _async_update_data(self) -> OpenGymState:
         try:
             state, rev = await self.client.get_state()
         except OpenGymError as err:
             raise UpdateFailed(f"openGym polling failed: {err}") from err
+        await self._async_update_presence()
         snapshot = OpenGymState(state)
         snapshot._rev = rev  # noqa: SLF001  (needed for conditional writes)
         return snapshot
+
+    async def _async_update_presence(self) -> None:
+        """Read live presence from the admin endpoint (once per session)."""
+        if self.uid is None:
+            try:
+                me = await self.client.me()
+                self.uid = str((me.get("user") or {}).get("id"))
+            except OpenGymError:
+                return
+        if self.is_admin is False:
+            self.presence = None
+            return
+        try:
+            users = await self.client.admin_users()
+        except OpenGymError:
+            return
+        if users is None:
+            self.is_admin = False
+            self.presence = None
+            return
+        self.is_admin = True
+        row = next((u for u in users if str(u.get("id")) == self.uid), None)
+        self.presence = (row or {}).get("live")
 
     @callback
     def ingest_event(self, event_type: str, event: dict[str, Any]) -> None:
