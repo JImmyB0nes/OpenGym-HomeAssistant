@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "openGym einrichten",
+        "description": "Lege zuerst unter Einstellungen → Integrationen → Webhooks in openGym einen Webhook auf diese Instanz an und füge das einmalig angezeigte Signing Secret ein. Die Webhook-URL wird nach dem Anlegen dieser Integration angezeigt.",
+        "data": {
+          "name": "Name",
+          "secret": "Signing Secret (optional, hex)"
+        }
+      }
+    },
+    "error": {
+      "invalid_secret": "Das Signing Secret darf nur Hex-Zeichen enthalten."
+    },
+    "abort": {
+      "already_configured": "Diese Instanz ist bereits eingerichtet."
+    }
+  }
+}

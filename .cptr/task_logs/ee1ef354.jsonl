@@ -1,0 +1,4 @@
+{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && TOKEN=$(cat ~/.config/forgejo_api_token.txt | tr -d '\\n') && git push \"https://jimmybones:$(python3 -c \"import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))\" \"$TOKEN\")@git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git\" main 2>&1 | tail -3 && git remote set-url origin \"https://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git\" && git config credential.helper \"store --file ~/.config/git-forgejo-cred 2>/dev/null; true\" 2>/dev/null; echo done", "pid": 3253275, "ts": 1794590274.6546664}
+{"type": "output", "data": "To https://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git\r\n * [new branch]      main -> main\r\n", "ts": 1794590275.3636918}
+{"type": "output", "data": "done\r\n", "ts": 1794590275.3667507}
+{"type": "end", "exit_code": 0, "ts": 1794590275.3679256}

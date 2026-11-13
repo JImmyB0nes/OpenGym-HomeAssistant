@@ -1,0 +1,4 @@
+{"type": "start", "command": "grep -q \"Host forgejo-git\" ~/.ssh/config || printf '\\n# Forgejo auf Webserver 192.168.123.14 (cptr, Nov 2026)\\nHost forgejo-git\\n    HostName 192.168.123.14\\n    Port 2222\\n    User git\\n    IdentityFile ~/.ssh/id_ed25519_randyc\\n    IdentitiesOnly yes\\n' >> ~/.ssh/config; ssh -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new forgejo-git 2>&1 | head -3", "pid": 3253598, "ts": 1794590574.0437527}
+{"type": "output", "data": "PTY allocation request failed on channel 0\r\r\n", "ts": 1794590574.120187}
+{"type": "output", "data": "Hi there, jimmybones! You've successfully authenticated with the key named cptr-randyc, but Forgejo does not provide shell access.\r\nIf this is unexpected, please log in with password and setup Forgejo under another user.\r\n", "ts": 1794590574.1831646}
+{"type": "end", "exit_code": 0, "ts": 1794590574.1876423}

@@ -1,0 +1,11 @@
+{
+  "domain": "opengym",
+  "name": "openGym",
+  "codeowners": ["@JImmyB0nes"],
+  "config_flow": true,
+  "documentation": "https://github.com/JImmyB0nes/OpenGym-HomeAssistant",
+  "integration_type": "service",
+  "iot_class": "push",
+  "issue_tracker": "https://github.com/JImmyB0nes/OpenGym-HomeAssistant/issues",
+  "version": "0.1.0"
+}

@@ -1,0 +1,4 @@
+{"type": "start", "command": "cat ~/.ssh/config; echo ===; head -c 10 ~/.config/forgejo_api_token.txt >/dev/null && echo \"token file exists\"; cat ~/.config/forgejo_credentials.txt 2>/dev/null | head -3", "pid": 3253172, "ts": 1794590210.0789783}
+{"type": "output", "data": "\r\n# GitHub-Account webmaster@randyc.de (cptr, Nov 2026)\r\nHost github-randyc\r\n    HostName github.com\r\n    User git\r\n    IdentityFile ~/.ssh/id_ed25519_randyc\r\n    IdentitiesOnly yes\r\n\r\n", "ts": 1794590210.083012}
+{"type": "output", "data": "===\r\ntoken file exists\r\nLogin: jimmybones / CptrFg-6afaab5415a9fd67\r\n", "ts": 1794590210.084096}
+{"type": "end", "exit_code": 0, "ts": 1794590210.085711}

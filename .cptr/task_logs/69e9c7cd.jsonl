@@ -1,0 +1,5 @@
+{"type": "start", "command": "TOKEN=$(cat ~/.config/forgejo_api_token.txt); curl -s -m 10 -H \"Authorization: token $TOKEN\" http://192.168.123.14/api/v1/user | head -c 300; echo; echo ===; curl -s -m 10 -o /dev/null -w \"%{http_code}\\n\" http://192.168.123.14", "pid": 3253189, "ts": 1794590221.912063}
+{"type": "output", "data": "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">\r\n<html><head>\r\n<title>301 Moved Permanently</title>\r\n</head><body>\r\n<h1>Moved Permanently</h1>\r\n<p>The document has moved <a href=\"https://analytics.jimmybones.de/api/v1/user\">here</a>.</p>\r\n</body></html>\r\n", "ts": 1794590221.928868}
+{"type": "output", "data": "\r\n===\r\n", "ts": 1794590221.9300869}
+{"type": "output", "data": "301\r\n", "ts": 1794590221.9337597}
+{"type": "end", "exit_code": 0, "ts": 1794590221.9346433}

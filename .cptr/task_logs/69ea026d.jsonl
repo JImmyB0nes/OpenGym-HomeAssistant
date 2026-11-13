@@ -1,0 +1,5 @@
+{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && git ls-remote origin HEAD 2>/dev/null | head -1; git ls-remote forgejo HEAD 2>/dev/null | head -1; git rev-parse HEAD", "pid": 3253640, "ts": 1794590595.096089}
+{"type": "output", "data": "2d0256db1e0a2ba8d0755eeafebab084e3d651d7\tHEAD\r\n", "ts": 1794590596.602351}
+{"type": "output", "data": "2d0256db1e0a2ba8d0755eeafebab084e3d651d7\tHEAD\r\n", "ts": 1794590596.7550428}
+{"type": "output", "data": "2d0256db1e0a2ba8d0755eeafebab084e3d651d7\r\n", "ts": 1794590596.757166}
+{"type": "end", "exit_code": 0, "ts": 1794590596.757771}
