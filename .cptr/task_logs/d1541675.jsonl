@@ -1,0 +1,4 @@
+{"type": "start", "command": "pip3 install --quiet --user pillow 2>&1 | tail -1; python3 -c \"import PIL; print('PIL', PIL.__version__)\"", "pid": 3255591, "ts": 1794592388.453607}
+{"type": "output", "data": "hint: See PEP 668 for the detailed specification.\r\n", "ts": 1794592388.781637}
+{"type": "output", "data": "Traceback (most recent call last):\r\n  File \"<string>\", line 1, in <module>\r\nModuleNotFoundError: No module named 'PIL'\r\n", "ts": 1794592388.7905715}
+{"type": "end", "exit_code": 1, "ts": 1794592388.7930515}

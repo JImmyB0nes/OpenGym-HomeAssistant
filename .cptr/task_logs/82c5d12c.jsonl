@@ -1,1 +1,4 @@
 {"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && printf '__pycache__/\\n*.pyc\\n.ha_venv/\\n' > .gitignore && git add -A && git -c user.name=cptr -c user.email=webmaster@randyc.de commit -m \"Integration-Grundgeruest: Webhook-Empfang mit Signature-Check, Config Flow, Sensoren\" 2>&1 | tail -1 && git push origin main 2>&1 | tail -2", "pid": 3253988, "ts": 1794590986.653208}
+{"type": "output", "data": " create mode 100644 custom_components/opengym/translations/en.json\r\n", "ts": 1794590986.6704297}
+{"type": "output", "data": "To ssh://192.168.123.14:2222/jimmybones/OpenGym-HomeAssistant.git\r\n   2d0256d..97ddd9b  main -> main\r\n", "ts": 1794590989.1016204}
+{"type": "end", "exit_code": 0, "ts": 1794590989.1027803}

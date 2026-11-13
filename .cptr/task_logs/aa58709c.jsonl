@@ -1,0 +1,5 @@
+{"type": "start", "command": "cd /tmp && grep -n \"catalogue\\|/api/ex\" openapi.yaml | head; echo ===MUSCLES; grep -n \"muscles\\|musc\" openapi.yaml | head; echo ===; curl -s -m 20 \"https://api.github.com/repos/DuarteSantos8/openGym/contents/catalogue\" | python3 -c \"import json,sys; [print(x['name']) for x in json.load(sys.stdin)]\" 2>/dev/null | head -20", "pid": 3254493, "ts": 1794591430.4201908}
+{"type": "output", "data": "===MUSCLES\r\n", "ts": 1794591430.4245198}
+{"type": "output", "data": "3298:            example: { intake: { goal: muscle, experience: novice, daysPerWeek: 3, equipment: [dumbbell, barbell] } }\r\n4260:          description: User-created exercises (id, name, muscles\u2026).\r\n4762:        goal: { type: string, description: \"e.g. `muscle`, `strength`, `fat-loss`.\" }\r\n===\r\n", "ts": 1794591430.426378}
+{"type": "output", "data": "README.md\r\nbrowse\r\nexercises\r\ni18n-glossary-pt-sv.md\r\ni18n\r\nmedia\r\n", "ts": 1794591430.6667628}
+{"type": "end", "exit_code": 0, "ts": 1794591430.6736617}

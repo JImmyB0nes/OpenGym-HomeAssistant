@@ -1,0 +1,2 @@
+{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && rm custom_components/opengym/brand/logo.png custom_components/opengym/brand/icon.png && ls custom_components/opengym/brand/ && git add -A && git -c user.name=cptr -c user.email=webmaster@randyc.de commit -m \"Logos: offizielles openGym-Logo als brand/logo.png, icon.png (mono, hell+dark) und benutzerdefiniertes Icon\" 2>&1 | tail -1 && git push origin main 2>&1 | tail -1", "pid": 3255755, "ts": 1794592508.4921021}
+{"type": "output", "data": "opengym.png\r\n", "ts": 1794592508.494077}
