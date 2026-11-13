@@ -1,5 +1,0 @@
-{"type": "start", "command": "cd /tmp && grep -n \"heart\\|\\bhr\\b\\|hr:\" openapi.yaml | head -10; echo ===; grep -n \"exWeights\" openapi.yaml", "pid": 3322022, "ts": 1794594857.0746727}
-{"type": "output", "data": "166:    description: Live-workout presence heartbeat\r\n2742:      summary: Live-workout presence heartbeat\r\n2750:        listed 45 s after that mark unless a heartbeat arrives first; a heartbeat\r\n4533:      description: Live-workout snapshot (from /api/activity heartbeats).\r\n", "ts": 1794594857.0761545}
-{"type": "output", "data": "===\r\n", "ts": 1794594857.0763395}
-{"type": "output", "data": "4262:        exWeights:\r\n", "ts": 1794594857.0775673}
-{"type": "end", "exit_code": 0, "ts": 1794594857.0784945}

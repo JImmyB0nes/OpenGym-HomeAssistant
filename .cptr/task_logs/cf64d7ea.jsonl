@@ -1,3 +1,0 @@
-{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && cp brand/logo.png brand/icon.png custom_components/opengym/brand/ && ls -la custom_components/opengym/brand/", "pid": 3255722, "ts": 1794592465.4713182}
-{"type": "output", "data": "insgesamt 16\r\ndrwxr-xr-x 2 jimmybones jimmybones 4096 Nov 13 18:54 .\r\ndrwxr-xr-x 5 jimmybones jimmybones 4096 Nov 13 18:54 ..\r\n-rw-r--r-- 1 jimmybones jimmybones 1550 Nov 13 18:54 icon.png\r\n-rw-r--r-- 1 jimmybones jimmybones 1650 Nov 13 18:54 logo.png\r\n", "ts": 1794592465.4860795}
-{"type": "end", "exit_code": 0, "ts": 1794592465.4875038}

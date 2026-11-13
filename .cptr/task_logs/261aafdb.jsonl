@@ -1,4 +1,0 @@
-{"type": "start", "command": "which uv && uv venv /tmp/oglogo --quiet 2>&1 | tail -1 && uv pip install --python /tmp/oglogo/bin/python pillow --quiet 2>&1 | tail -1 && /tmp/oglogo/bin/python -c \"import PIL; print('PIL', PIL.__version__)\"", "pid": 3255625, "ts": 1794592397.4128017}
-{"type": "output", "data": "/home/jimmybones/.local/bin/uv\r\n", "ts": 1794592397.4154882}
-{"type": "output", "data": "PIL 13.0.0\r\n", "ts": 1794592397.8272316}
-{"type": "end", "exit_code": 0, "ts": 1794592397.8298366}

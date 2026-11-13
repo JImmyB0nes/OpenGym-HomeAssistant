@@ -1,3 +1,0 @@
-{"type": "start", "command": "python3 -c \"import PIL; print(PIL.__version__)\" 2>&1; which convert magick inkscape rsvg-convert 2>/dev/null", "pid": 3255438, "ts": 1794592328.018176}
-{"type": "output", "data": "Traceback (most recent call last):\r\n  File \"<string>\", line 1, in <module>\r\nModuleNotFoundError: No module named 'PIL'\r\n", "ts": 1794592328.0378077}
-{"type": "end", "exit_code": 1, "ts": 1794592328.0403833}

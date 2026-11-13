@@ -1,3 +1,4 @@
+.cptr/
 __pycache__/
 *.pyc
 .ha_venv/

@@ -1,4 +1,0 @@
-{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && git init -b main 2>&1 | tail -1 && git remote add origin https://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git && git remote -v", "pid": 3253236, "ts": 1794590253.2581642}
-{"type": "output", "data": "Leeres Git-Repository in /home/jimmybones/Dokumente/OpenGym-HomeAssistant/.git/ initialisiert\r\n", "ts": 1794590253.270356}
-{"type": "output", "data": "origin\thttps://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git (fetch)\r\norigin\thttps://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git (push)\r\n", "ts": 1794590253.2716253}
-{"type": "end", "exit_code": 0, "ts": 1794590253.2723398}

@@ -1,4 +1,0 @@
-{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && python3 -m py_compile custom_components/opengym/*.py && echo COMPILE_OK && python3 -c \"import json; json.load(open('custom_components/opengym/translations/de.json')); json.load(open('custom_components/opengym/translations/en.json')); json.load(open('custom_components/opengym/manifest.json')); print('JSON_OK')\"", "pid": 3317800, "ts": 1794593797.6596901}
-{"type": "output", "data": "COMPILE_OK\r\n", "ts": 1794593797.7036939}
-{"type": "output", "data": "JSON_OK\r\n", "ts": 1794593797.7170856}
-{"type": "end", "exit_code": 0, "ts": 1794593797.7201035}

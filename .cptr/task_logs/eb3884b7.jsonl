@@ -1,5 +1,0 @@
-{"type": "start", "command": "cd /home/jimmybones/Dokumente/OpenGym-HomeAssistant && git add hacs.json && git -c user.name=cptr -c user.email=webmaster@randyc.de commit -m \"HACS-Konfiguration (hacs.json)\" 2>&1 | tail -1 && git push origin main 2>&1 | tail -2 && git tag v0.1.0 && git push origin v0.1.0 2>&1 | tail -1", "pid": 3254134, "ts": 1794591135.4052217}
-{"type": "output", "data": " create mode 100644 hacs.json\r\n", "ts": 1794591135.4179275}
-{"type": "output", "data": "To ssh://192.168.123.14:2222/jimmybones/OpenGym-HomeAssistant.git\r\n   97ddd9b..cfbbccc  main -> main\r\n", "ts": 1794591148.4054427}
-{"type": "output", "data": " * [new tag]         v0.1.0 -> v0.1.0\r\n", "ts": 1794591150.753738}
-{"type": "end", "exit_code": 0, "ts": 1794591150.7546353}

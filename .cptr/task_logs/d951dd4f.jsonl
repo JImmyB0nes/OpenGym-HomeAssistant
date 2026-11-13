@@ -1,4 +1,0 @@
-{"type": "start", "command": "ls -la ~/.config/github-randyc.token ~/.config/gh/token_randyc 2>/dev/null; echo ===; git -C /home/jimmybones/Dokumente/OpenGym-HomeAssistant remote -v", "pid": 3253564, "ts": 1794590549.421167}
-{"type": "output", "data": "-rw------- 1 jimmybones jimmybones 93 Nov  7 13:21 /home/jimmybones/.config/gh/token_randyc\r\n-rw------- 1 jimmybones jimmybones 94 Nov  8 18:01 /home/jimmybones/.config/github-randyc.token\r\n", "ts": 1794590549.42525}
-{"type": "output", "data": "===\r\norigin\thttps://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git (fetch)\r\norigin\thttps://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant.git (push)\r\n", "ts": 1794590549.4256399}
-{"type": "end", "exit_code": 0, "ts": 1794590549.4265358}

@@ -1,4 +1,0 @@
-{"type": "start", "command": "cd /tmp && grep -n \"catalogue\\|/api/ex\" openapi.yaml | head -10; echo ===; grep -rn \"muscles\" openapi.yaml | head -10", "pid": 3254464, "ts": 1794591422.7277026}
-{"type": "output", "data": "===\r\n", "ts": 1794591422.7294054}
-{"type": "output", "data": "4260:          description: User-created exercises (id, name, muscles\u2026).\r\n", "ts": 1794591422.7308135}
-{"type": "end", "exit_code": 0, "ts": 1794591422.7318814}

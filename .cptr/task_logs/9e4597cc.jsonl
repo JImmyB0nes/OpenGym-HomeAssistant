@@ -1,5 +1,0 @@
-{"type": "start", "command": "TOKEN=$(cat ~/.config/forgejo_api_token.txt); curl -s -m 15 -H \"Authorization: token $TOKEN\" https://git.jimmybones.de/api/v1/user | head -c 300; echo; curl -sk -m 15 -o /dev/null -w \"%{http_code}\\n\" https://git.jimmybones.de", "pid": 3253219, "ts": 1794590229.532782}
-{"type": "output", "data": "{\"id\":1,\"login\":\"jimmybones\",\"login_name\":\"\",\"source_id\":0,\"full_name\":\"Randy Carter\",\"email\":\"webmaster@randyc.de\",\"avatar_url\":\"https://git.jimmybones.de/avatars/8fed29a930bb7b066a90fe64ac8f657ee6228da3238f97d73c1d233c87bab96a\",\"html_url\":\"https://git.jimmybones.de/jimmybones\",\"language\":\"de-DE\",\"", "ts": 1794590229.7648811}
-{"type": "output", "data": "\r\n", "ts": 1794590229.769144}
-{"type": "output", "data": "200\r\n", "ts": 1794590229.898042}
-{"type": "end", "exit_code": 0, "ts": 1794590229.9001567}

@@ -1,3 +1,0 @@
-{"type": "start", "command": "ls -la /home/jimmybones/Dokumente/OpenGym-HomeAssistant", "pid": 3253163, "ts": 1794590198.3874922}
-{"type": "output", "data": "insgesamt 12\r\ndrwxr-xr-x  3 jimmybones jimmybones 4096 Nov 13 18:15 .\r\ndrwxr-xr-x 12 jimmybones jimmybones 4096 Nov 13 18:15 ..\r\ndrwxr-xr-x  4 jimmybones jimmybones 4096 Nov 13 18:16 .cptr\r\n", "ts": 1794590198.390234}
-{"type": "end", "exit_code": 0, "ts": 1794590198.3917086}
