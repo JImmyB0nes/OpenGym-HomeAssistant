@@ -58,6 +58,13 @@ Dazu:
 * `binary_sensor.opengym_rest_day` - `on`, wenn heute keine Einheit geplant ist
 * `calendar.opengym_training_plan` - Wochentagsplan (mit Tages-Overrides) als Kalender
 
+## Device-Automation
+
+Das Gerät „openGym“ stellt im Automation-Editor bereit:
+
+* **Auslöser:** „Workout abgeschlossen“, „Neuer persönlicher Rekord“, „Wiegewägung erfasst“ (filterbar nach echten vs. Test-Lieferungen)
+* **Aktion:** „Wiegewägung protokollieren“ (ruft `opengym.log_weighin` auf dem Gerät auf)
+
 ## Services
 
 ```yaml

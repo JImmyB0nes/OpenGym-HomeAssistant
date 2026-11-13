@@ -179,5 +179,15 @@
       "name": "Send test event",
       "description": "Makes openGym deliver a test webhook event right away."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "workout_finished": "Workout finished",
+      "personal_record": "New personal record",
+      "weighin_logged": "Weigh-in logged"
+    },
+    "action_type": {
+      "log_weighin": "Log weigh-in"
+    }
   }
 }

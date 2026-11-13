@@ -6,11 +6,11 @@ from datetime import date
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MUSCLES, RECOVERY_DAYS
+from .device_info import open_gym_device_info
 from .coordinator import OpenGymDataCoordinator
 
 
@@ -40,7 +40,7 @@ class RestDaySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntit
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_rest_day"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        self._attr_device_info = open_gym_device_info(entry)
 
     @property
     def available(self) -> bool:
@@ -66,7 +66,7 @@ class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySens
         self._attr_translation_key = f"muscle_{muscle.replace('-', '_')}_recovering"
         self._attr_name = f"{label} recovering"
         self._attr_unique_id = f"{entry.entry_id}_muscle_{muscle}_recovering"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        self._attr_device_info = open_gym_device_info(entry)
 
     @property
     def available(self) -> bool:

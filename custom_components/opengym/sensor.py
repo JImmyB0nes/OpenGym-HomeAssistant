@@ -12,12 +12,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MUSCLES
 from .coordinator import OpenGymDataCoordinator, OpenGymState
+from .device_info import open_gym_device_info
 
 # (key, name, kind) — kind selects the value function below.
 STATIC_SENSORS = (
@@ -43,7 +43,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up openGym sensors."""
     coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
-    device = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
     entities: list[SensorEntity] = [
         OpenGymSensor(coordinator, entry, key, name, kind)
         for key, name, kind in STATIC_SENSORS
@@ -66,7 +65,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         self._attr_translation_key = key
         self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        self._attr_device_info = open_gym_device_info(entry)
         if kind == "weighin":
             self._attr_device_class = SensorDeviceClass.WEIGHT
             self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -223,7 +222,7 @@ class MuscleDaysSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         self._attr_translation_key = f"muscle_{muscle.replace('-', '_')}"
         self._attr_name = f"{label} idle"
         self._attr_unique_id = f"{entry.entry_id}_muscle_{muscle}"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
+        self._attr_device_info = open_gym_device_info(entry)
 
     @property
     def available(self) -> bool:

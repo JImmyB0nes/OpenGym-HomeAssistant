@@ -179,5 +179,15 @@
       "name": "Test-Event senden",
       "description": "Lässt openGym sofort ein Test-Webhook-Event zustellen."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "workout_finished": "Workout abgeschlossen",
+      "personal_record": "Neuer persönlicher Rekord",
+      "weighin_logged": "Wiegewägung erfasst"
+    },
+    "action_type": {
+      "log_weighin": "Wiegewägung protokollieren"
+    }
   }
 }
