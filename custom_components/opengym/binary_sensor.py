@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
@@ -21,7 +22,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up openGym binary sensors."""
     coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
-    entities: list[BinarySensorEntity] = [RestDaySensor(coordinator, entry)]
+    entities: list[BinarySensorEntity] = [
+        RestDaySensor(coordinator, entry),
+        ActiveWorkoutSensor(coordinator, entry),
+    ]
     entities += [
         MuscleRecoverySensor(coordinator, entry, muscle, label)
         for muscle, label in MUSCLES.items()
@@ -52,6 +56,46 @@ class RestDaySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntit
         if state is None:
             return None
         return state.routine_for(date.today()) is None
+
+
+class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
+    """On while a workout is running right now (live presence).
+
+    openGym only exposes live presence through the admin endpoint; without
+    admin rights the sensor stays unavailable.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "active_workout"
+    _attr_name = "Active workout"
+    _attr_icon = "mdi:dumbbell"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_active_workout"
+        self._attr_device_info = open_gym_device_info(entry)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.is_admin is True and self.coordinator.last_update_success
+
+    @property
+    def is_on(self) -> bool | None:
+        if not self.available:
+            return None
+        return self.coordinator.presence is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        presence = self.coordinator.presence or {}
+        if not presence:
+            return {}
+        return {
+            "name": presence.get("name"),
+            "exercise": f"{presence.get('exIdx', 0) + 1}/{presence.get('exTotal', 0)}",
+            "sets": f"{presence.get('setsDone', 0)}/{presence.get('setsTotal', 0)}",
+            "started_at": presence.get("startedAt"),
+        }
 
 
 class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
