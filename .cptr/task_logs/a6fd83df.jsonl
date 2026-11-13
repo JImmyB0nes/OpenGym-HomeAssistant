@@ -1,0 +1,2 @@
+{"type": "start", "command": "cd /tmp && sed -n '4390,4440p' openapi.yaml | grep -n \"hr\\|bpm\" ; grep -n \"bpm\" openapi.yaml | head", "pid": 3322027, "ts": 1794594864.5343184}
+{"type": "end", "exit_code": 0, "ts": 1794594864.5564415}

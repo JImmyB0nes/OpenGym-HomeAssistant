@@ -1,0 +1,4 @@
+{"type": "start", "command": "TOKEN=$(cat ~/.config/github-randyc.token | tr -d '\\n'); curl -s -m 20 -X DELETE -H \"Authorization: token $TOKEN\" https://api.github.com/repos/JImmyB0nes/OpenGym-HomeAssistant/releases/444526997 | head -c 50; echo; curl -s -m 20 -H \"Authorization: token $TOKEN\" https://api.github.com/repos/JImmyB0nes/OpenGym-HomeAssistant/releases | python3 -c \"import json,sys; [print(r['id'], r['tag_name']) for r in json.load(sys.stdin)]\"", "pid": 3318039, "ts": 1794594016.7613866}
+{"type": "output", "data": "\r\n", "ts": 1794594017.5775642}
+{"type": "output", "data": "444583307 v0.2.0\r\n", "ts": 1794594018.0480802}
+{"type": "end", "exit_code": 0, "ts": 1794594018.0521035}

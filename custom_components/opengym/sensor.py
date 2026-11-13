@@ -29,6 +29,10 @@ STATIC_SENSORS = (
     ("streak", "Workout streak", "streak"),
     ("next_session", "Next session", "next"),
     ("total_lifting", "Total lifted", "total"),
+    ("goal_weight", "Goal weight", "goal"),
+    ("days_since_workout", "Days since last workout", "days_since"),
+    ("personal_records", "Personal records", "prs"),
+    ("workout_heart_rate", "Workout heart rate", "hr"),
 )
 
 
@@ -66,6 +70,17 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if kind == "weighin":
             self._attr_device_class = SensorDeviceClass.WEIGHT
             self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif kind == "goal":
+            self._attr_device_class = SensorDeviceClass.WEIGHT
+            self._attr_icon = "mdi:flag-checkered"
+        elif kind == "days_since":
+            self._attr_native_unit_of_measurement = UnitOfTime.DAYS
+            self._attr_icon = "mdi:calendar-remove"
+        elif kind == "prs":
+            self._attr_icon = "mdi:medal"
+        elif kind == "hr":
+            self._attr_native_unit_of_measurement = "bpm"
+            self._attr_icon = "mdi:heart-pulse"
         elif kind in ("volume", "total"):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif kind == "count":
@@ -86,7 +101,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
 
     @property
     def native_unit_of_measurement(self) -> str | None:
-        if self._kind in ("weighin", "volume", "total"):
+        if self._kind in ("weighin", "volume", "total", "goal"):
             state = self.coordinator.data
             if state and state.unit == "lb":
                 return UnitOfMass.POUNDS
@@ -128,6 +143,16 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return f"{routine.get('name', '?')} · {day.isoformat()}"
         if self._kind == "total":
             return round(sum(w.get("vol") or 0 for w in state.workouts), 0)
+        if self._kind == "goal":
+            return state.goal_weight()
+        if self._kind == "days_since":
+            day = state.last_workout_day()
+            return (date.today() - day).days if day else None
+        if self._kind == "prs":
+            return len(state.pr_map())
+        if self._kind == "hr":
+            hr = state.last_workout_hr()
+            return hr["avg"] if hr else None
         return None
 
     @property
@@ -157,6 +182,30 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "weighin":
             b = state.last_weighin() or {}
             return {"date": b.get("d")}
+        if self._kind == "goal":
+            goal = state.goal_weight()
+            current = (state.last_weighin() or {}).get("w")
+            if goal is None:
+                return {}
+            result = {"goal": goal}
+            if current is not None:
+                result["current"] = current
+                result["delta"] = round(current - goal, 1)
+                result["at_or_below_goal"] = current <= goal
+            return result
+        if self._kind == "prs":
+            pr_map = state.pr_map()
+            return {
+                f"{ex_id}": f"{info['weight']}{state.unit}"
+                + (f" ({info['date']})" if info.get("date") else "")
+                for ex_id, info in sorted(pr_map.items())
+            }
+        if self._kind == "hr":
+            hr = state.last_workout_hr()
+            return hr or {}
+        if self._kind == "days_since":
+            day = state.last_workout_day()
+            return {"last_workout": day.isoformat() if day else None}
         return {}
 
 

@@ -43,6 +43,10 @@ Stamm-Sensoren (Webhooks + Polling von `/api/data`):
 | `sensor.opengym_streak` | Trainingstage in Folge |
 | `sensor.opengym_next_session` | `Push - 2026-11-16` oder `Rest` |
 | `sensor.opengym_total_lifting` | Gehobenes Gesamtvolumen (kg) |
+| `sensor.opengym_goal_weight` | Zielgewicht (Attribute: `delta`, `at_or_below_goal`) |
+| `sensor.opengym_days_since_workout` | Tage seit der letzten Einheit |
+| `sensor.opengym_personal_records` | Anzahl geführter Bestgewichte (alle je Übung als Attribut) |
+| `sensor.opengym_workout_heart_rate` | Ø Puls des letzten Workouts, wenn HF-Saetze vorhanden |
 
 Muskel-Abdeckung (14 Gruppen, aus openGyms Muskelkarte, 246 Uebungen):
 

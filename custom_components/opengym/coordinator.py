@@ -97,6 +97,47 @@ class OpenGymState:
     def last_weighin(self) -> dict[str, Any] | None:
         return self.bodyweight[-1] if self.bodyweight else None
 
+    def goal_weight(self) -> float | None:
+        """openGym's goal weight (flat `targetW` setting, also under settings)."""
+        settings = self.raw.get("settings") or {}
+        for source in (self.raw, settings):
+            value = source.get("targetW")
+            if isinstance(value, (int, float)) and value > 0:
+                return float(value)
+        return None
+
+    # --- recency / records --------------------------------------------------
+
+    def last_workout_day(self) -> date | None:
+        w = self.last_workout()
+        return _day(w.get("d")) if w else None
+
+    def pr_map(self) -> dict[str, dict[str, Any]]:
+        """Best logged weight per exercise (openGym's `exWeights`)."""
+        out: dict[str, dict[str, Any]] = {}
+        for ex_id, info in (self.raw.get("exWeights") or {}).items():
+            if isinstance(info, dict) and isinstance(info.get("w"), (int, float)):
+                out[str(ex_id)] = {
+                    "weight": float(info["w"]),
+                    "date": info.get("d"),
+                }
+        return out
+
+    def last_workout_hr(self) -> dict[str, float] | None:
+        """Average/max heart rate of the last workout, if any set carried one."""
+        w = self.last_workout()
+        if not w:
+            return None
+        values = [
+            float(s["hr"])
+            for e in w.get("entries") or []
+            for s in e.get("sets") or []
+            if isinstance(s.get("hr"), (int, float))
+        ]
+        if not values:
+            return None
+        return {"avg": round(sum(values) / len(values), 1), "max": max(values)}
+
     # --- plan ---------------------------------------------------------------
 
     def routine_for(self, day: date) -> dict[str, Any] | None:

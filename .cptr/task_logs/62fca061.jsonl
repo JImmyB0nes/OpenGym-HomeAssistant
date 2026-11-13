@@ -1,0 +1,4 @@
+{"type": "start", "command": "TOKEN=$(cat ~/.config/forgejo_api_token.txt); curl -s -m 15 -X DELETE -H \"Authorization: token $TOKEN\" https://git.jimmybones.de/api/v1/repos/jimmybones/OpenGym-HomeAssistant/releases/475 | head -c 60; echo; curl -s -m 15 -H \"Authorization: token $TOKEN\" https://git.jimmybones.de/api/v1/repos/jimmybones/OpenGym-HomeAssistant/releases | python3 -c \"import json,sys; [print(r['id'], r['tag_name']) for r in json.load(sys.stdin)]\"", "pid": 3318062, "ts": 1794594033.8233705}
+{"type": "output", "data": "\r\n", "ts": 1794594033.993797}
+{"type": "output", "data": "476 v0.2.0\r\n", "ts": 1794594034.1408114}
+{"type": "end", "exit_code": 0, "ts": 1794594034.1482677}

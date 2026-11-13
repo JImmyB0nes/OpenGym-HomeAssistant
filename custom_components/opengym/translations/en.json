@@ -103,6 +103,18 @@
       },
       "muscle_abs": {
         "name": "Core idle days"
+      },
+      "goal_weight": {
+        "name": "Goal weight"
+      },
+      "days_since_workout": {
+        "name": "Days since last workout"
+      },
+      "personal_records": {
+        "name": "Personal records"
+      },
+      "workout_heart_rate": {
+        "name": "Workout heart rate"
       }
     },
     "binary_sensor": {

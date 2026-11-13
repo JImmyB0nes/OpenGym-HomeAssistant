@@ -103,6 +103,18 @@
       },
       "muscle_abs": {
         "name": "Core Trainingspause"
+      },
+      "goal_weight": {
+        "name": "Zielgewicht"
+      },
+      "days_since_workout": {
+        "name": "Tage seit letztem Workout"
+      },
+      "personal_records": {
+        "name": "Persönliche Rekorde"
+      },
+      "workout_heart_rate": {
+        "name": "Workout-Puls"
       }
     },
     "binary_sensor": {
