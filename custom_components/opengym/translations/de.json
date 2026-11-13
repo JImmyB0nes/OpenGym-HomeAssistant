@@ -129,6 +129,9 @@
       },
       "custom_exercises": {
         "name": "Eigene Übungen"
+      },
+      "muscle_balance": {
+        "name": "Muskelbalance"
       }
     },
     "binary_sensor": {

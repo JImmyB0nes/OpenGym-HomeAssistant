@@ -16,7 +16,7 @@ import voluptuous as vol
 
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CoreState, EVENT_HOMEASSISTANT_START, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
@@ -42,6 +42,7 @@ from .const import (
     SERVICE_TRIGGER_TEST,
 )
 from .coordinator import OpenGymDataCoordinator
+from .frontend import async_schedule_frontend
 from .security import verify_signature
 
 _LOGGER = logging.getLogger(__name__)
@@ -310,6 +311,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             supports_response=SupportsResponse.ONLY,
         )
         hass.data.setdefault("_opengym_services", set()).add(DOMAIN)
+
+    # Serve and register the bundled muscle card (once per HA start).
+    if hass.state == CoreState.running:
+        async_schedule_frontend(hass)
+    else:
+        async def _register_on_start(_event) -> None:
+            async_schedule_frontend(hass)
+
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _register_on_start)
 
     return True
 

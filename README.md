@@ -23,7 +23,8 @@ Sie funktioniert zweigleisig:
 
 ## Features
 
-- 🏋️ **14 Stamm-Sensoren** — letztes Workout, Wochen-Volumen, Streak, nächste Einheit, geschätztes 1RM u.v.m.
+- 🏋️ **15 Stamm-Sensoren** — letztes Workout, Wochen-Volumen, Streak, nächste Einheit, geschätztes 1RM u.v.m.
+- 🧬 **Muskel-Karte im Dashboard** — gebündelte Lovelace-Card mit echter openGym-Körperkarte, Wochen-Sets gegen Zielbereiche, Erholung und Kraft
 - ✅ **"Heute / diese Woche trainiert"** — die meistgenutzten Trigger für Automationen
 - 📆 **Workout-Verlauf** — abgeschlossene Workouts als Kalender-Events für die native Calendar-Card
 - 💪 **28 Muskel-Sensoren** — Idle-Tage und Erholungsstatus für 14 Muskelgruppen, aus openGyms echter Muskelkarte (246 Übungen)
@@ -96,6 +97,7 @@ Ohne Haken: Die Integrationsseite zeigt die **Webhook-URL** (`/api/webhook/…`)
 | `sensor.opengym_workout_heart_rate` | Ø Puls des letzten Workouts (wenn HF-Sätze vorhanden) |
 | `sensor.opengym_best_one_rm` | bestes geschätztes 1RM (Epley), alle Übungen als Attribut |
 | `sensor.opengym_custom_exercises` | Anzahl eigener Übungen (Liste als Attribut) |
+| `sensor.opengym_muscle_balance` | Wochen-Sets je Muskel, Zielbereiche, zuletzt trainiert, bestes 1RM — als Attribute für die Muskel-Karte |
 
 ### Muskeln & Erholung
 
@@ -157,6 +159,30 @@ Für alle, die es genau wissen wollen:
 | `workout.finished` | `opengym_workout_finished` |
 | `workout.pr` | `opengym_personal_record` |
 | `weighin.logged` | `opengym_weighin_logged` |
+
+## Dashboard: die Muskel-Karte direkt in Home Assistant
+
+Seit **v0.7.0** liefert die Integration eine fertige **Lovelace-Karte** gleich mit — kein HACS-Einzeleintrag, keine manuelle Resource. Installiert die Integration, und `custom:opengym-muscle-card` erscheint automatisch im Karten-Dialog.
+
+Sie zeichnet **openGyms echte Körperkarte** (dieselbe Geometrie wie die App) und schummelt die Wochen-Realität drüber:
+
+| Modus | Was die Karte zeigt |
+|---|---|
+| **Sätze** | Effektive Sätze pro Muskel gegen den Zielbereich (10–20 & Co., wie in der App) |
+| **Erholung** | Frisch bis brachliegend — rot heißt „eben trainiert“, grün „seit Wochen nicht“ |
+| **Kraft** | Bestes geschätztes 1RM je Muskel (Epley) |
+
+```yaml
+type: custom:opengym-muscle-card
+entity: sensor.opengym_muscle_balance   # Default, darf weggelassen werden
+body: male          # male | female
+mode: sets          # sets | recovery | strength
+show_list: true     # Muskelliste mit Zielbalken
+show_week: true     # Wochenzeile „Woche vom …“
+accent: "#a3e635"   # eigene Akzentfarbe (Default: HA-Akzent)
+```
+
+Datenquelle ist der neue `sensor.opengym_muscle_balance` — Wochen-Sets, Zielbereiche, zuletzt trainiert und 1RM stecken als Attribute drin und lassen sich damit auch in eigenen Karten, Templates oder Automationen verwenden.
 
 ## Beispiele
 
