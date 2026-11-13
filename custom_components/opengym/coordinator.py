@@ -13,9 +13,15 @@ from pathlib import Path
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
+from .api import (
+    OpenGymApiClient,
+    OpenGymConnectionError,
+    OpenGymError,
+    OpenGymUnauthorizedError,
+)
 from .const import DOMAIN, EPLEY_K, MUSCLES, RECOVERY_DAYS, SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -220,12 +226,32 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         self.uid: str | None = None
         self.is_admin: bool | None = None
         self.presence: dict[str, Any] | None = None
+        self.consecutive_failures = 0
 
     async def _async_update_data(self) -> OpenGymState:
         try:
             state, rev = await self.client.get_state()
+        except OpenGymUnauthorizedError as err:
+            # session gone (revoked or paired device unpaired): ask for a new code
+            self.entry.async_start_reauth(self.hass)
+            raise UpdateFailed(f"openGym session invalid: {err}") from err
         except OpenGymError as err:
+            self.consecutive_failures += 1
+            if self.consecutive_failures >= 3:
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    f"connection_error_{self.entry.entry_id}",
+                    is_fixable=True,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="connection_error",
+                    translation_placeholders={"error": str(err)[:120]},
+                )
             raise UpdateFailed(f"openGym polling failed: {err}") from err
+        self.consecutive_failures = 0
+        ir.async_delete_issue(
+            self.hass, DOMAIN, f"connection_error_{self.entry.entry_id}"
+        )
         await self._async_update_presence()
         snapshot = OpenGymState(state)
         snapshot._rev = rev  # noqa: SLF001  (needed for conditional writes)

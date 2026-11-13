@@ -28,7 +28,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up the openGym calendar."""
     coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
-    async_add_entities([TrainingPlanCalendar(coordinator, entry)])
+    async_add_entities(
+        [
+            TrainingPlanCalendar(coordinator, entry),
+            WorkoutHistoryCalendar(coordinator, entry),
+        ]
+    )
 
 
 class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEntity):
@@ -83,3 +88,70 @@ class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEn
         self, hass: HomeAssistant, start_date: datetime, end_date: datetime
     ) -> list[CalendarEvent]:
         return self._events(start_date, end_date)
+
+
+class WorkoutHistoryCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEntity):
+    """Completed workouts as calendar events (history, not plan)."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "workout_history"
+    _attr_name = "Workout history"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_workout_history"
+        self._attr_device_info = open_gym_device_info(entry)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    @staticmethod
+    def _events(state, start: datetime, end: datetime) -> list[CalendarEvent]:
+        events: list[CalendarEvent] = []
+        for workout in state.workouts:
+            day = workout.get("d")
+            if not day:
+                continue
+            try:
+                d = date.fromisoformat(day[:10])
+            except ValueError:
+                continue
+            if not (start.date() <= d < end.date()):
+                continue
+            base = datetime(d.year, d.month, d.day)
+            started, ended = workout.get("start"), workout.get("end")
+            if isinstance(started, (int, float)) and isinstance(ended, (int, float)):
+                s = datetime.fromtimestamp(started / 1000)
+                e = datetime.fromtimestamp(ended / 1000)
+            else:
+                s, e = base, base + timedelta(days=1)
+            sets = sum(len(e_.get("sets") or []) for e_ in workout.get("entries") or [])
+            events.append(
+                CalendarEvent(
+                    start=s,
+                    end=e,
+                    summary=workout.get("name") or "Workout",
+                    description=(
+                        f"{sets} Saetze - {workout.get('vol', 0):.0f} {state.unit} Volumen"
+                    ),
+                )
+            )
+        return events
+
+    @property
+    def event(self) -> CalendarEvent | None:
+        state = self.coordinator.data
+        if state is None:
+            return None
+        today = datetime.combine(date.today(), datetime.min.time())
+        events = self._events(state, today, today + timedelta(days=1))
+        return events[-1] if events else None
+
+    async def async_get_events(
+        self, hass: HomeAssistant, start_date: datetime, end_date: datetime
+    ) -> list[CalendarEvent]:
+        state = self.coordinator.data
+        if state is None:
+            return []
+        return self._events(state, start_date, end_date)

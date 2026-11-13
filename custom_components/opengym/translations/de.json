@@ -17,6 +17,13 @@
           "secret": "Signing Secret (optional)",
           "auto_webhook": "Webhook automatisch einrichten"
         }
+      },
+      "reauth_confirm": {
+        "title": "openGym neu koppeln",
+        "description": "Die openGym-Sitzung ist ungültig. Erstelle in openGym einen neuen Pairing-Code (Einstellungen → Integrationen → „Die App koppeln“) und trage ihn hier ein.",
+        "data": {
+          "code": "Pairing-Code"
+        }
       }
     },
     "error": {
@@ -172,11 +179,25 @@
       },
       "active_workout": {
         "name": "Aktives Workout"
+      },
+      "worked_out_today": {
+        "name": "Heute trainiert"
+      },
+      "worked_out_this_week": {
+        "name": "Diese Woche trainiert"
       }
     },
     "calendar": {
       "training_plan": {
         "name": "Trainingsplan"
+      },
+      "workout_history": {
+        "name": "Workout-Verlauf"
+      }
+    },
+    "update": {
+      "instance_update": {
+        "name": "openGym-Instanz"
       }
     }
   },
@@ -188,6 +209,14 @@
     "trigger_test_event": {
       "name": "Test-Event senden",
       "description": "Lässt openGym sofort ein Test-Webhook-Event zustellen."
+    },
+    "get_workout_history": {
+      "name": "Workout-Verlauf abrufen",
+      "description": "Liefert Workouts mit Summary und Satzdetails der letzten N Tage. Antwortvariable für Vorlagen."
+    },
+    "get_routines": {
+      "name": "Routinen abrufen",
+      "description": "Liefert die gespeicherten Routinen mit ihren Übungen. Antwortvariable für Vorlagen."
     }
   },
   "device_automation": {

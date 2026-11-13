@@ -41,6 +41,8 @@ MAX_POLL_INTERVAL = 1440
 # Services
 SERVICE_LOG_WEIGHIN = "log_weighin"
 SERVICE_TRIGGER_TEST = "trigger_test_event"
+SERVICE_GET_WORKOUT_HISTORY = "get_workout_history"
+SERVICE_GET_ROUTINES = "get_routines"
 
 # Muscle groups from openGym's exercise-muscle map (primaries vocabulary).
 MUSCLES: Final[dict[str, str]] = {

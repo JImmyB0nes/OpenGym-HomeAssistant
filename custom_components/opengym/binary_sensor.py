@@ -25,6 +25,8 @@ async def async_setup_entry(
     entities: list[BinarySensorEntity] = [
         RestDaySensor(coordinator, entry),
         ActiveWorkoutSensor(coordinator, entry),
+        WorkedOutTodaySensor(coordinator, entry),
+        WorkedOutThisWeekSensor(coordinator, entry),
     ]
     entities += [
         MuscleRecoverySensor(coordinator, entry, muscle, label)
@@ -96,6 +98,57 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
             "sets": f"{presence.get('setsDone', 0)}/{presence.get('setsTotal', 0)}",
             "started_at": presence.get("startedAt"),
         }
+
+
+class _WorkedOutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
+    """Base for "did we train" sensors."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:dumbbell"
+
+    def __init__(self, coordinator, entry, key: str) -> None:
+        super().__init__(coordinator)
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_device_info = open_gym_device_info(entry)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+
+class WorkedOutTodaySensor(_WorkedOutSensor):
+    """On when a workout was logged today."""
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "worked_out_today")
+        self._attr_name = "Heute trainiert"
+
+    @property
+    def is_on(self) -> bool | None:
+        state = self.coordinator.data
+        if state is None:
+            return None
+        day = state.last_workout_day()
+        return day == date.today() if day else False
+
+
+class WorkedOutThisWeekSensor(_WorkedOutSensor):
+    """On when any workout happened in the last 7 days."""
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "worked_out_this_week")
+        self._attr_name = "Diese Woche trainiert"
+
+    @property
+    def is_on(self) -> bool | None:
+        state = self.coordinator.data
+        if state is None:
+            return None
+        day = state.last_workout_day()
+        if not day:
+            return False
+        return (date.today() - day).days < 7
 
 
 class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
