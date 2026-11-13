@@ -24,13 +24,17 @@ Sie funktioniert zweigleisig:
 ## Features
 
 - 🏋️ **14 Stamm-Sensoren** — letztes Workout, Wochen-Volumen, Streak, nächste Einheit, geschätztes 1RM u.v.m.
+- ✅ **"Heute / diese Woche trainiert"** — die meistgenutzten Trigger für Automationen
+- 📆 **Workout-Verlauf** — abgeschlossene Workouts als Kalender-Events für die native Calendar-Card
 - 💪 **28 Muskel-Sensoren** — Idle-Tage und Erholungsstatus für 14 Muskelgruppen, aus openGyms echter Muskelkarte (246 Übungen)
 - 🟢 **Live-Training** — `binary_sensor.opengym_active_workout` zeigt, ob gerade wirklich gehoben wird
 - 📅 **Kalender** — der Wochentagsplan als Entität, die jeder Karten- und Kalender-Card versteht
 - 🔔 **Device-Trigger & -Actions** — Automationen ohne YAML: *„Wenn das openGym-Gerät ein Workout abschließt …“*
 - ⚖️ **Zwei-Wege** — `log_weighin` schreibt die Waage zurück in openGym, `trigger_test_event` testet die Leitung
 - 🪄 **Auto-Webhook** — beim Koppeln richtet die Integration die Webhook-Verbindung in openGym gleich selbst ein
-- 🔐 **Abgesichert** — HMAC-SHA256-Signaturprüfung, Pairing-Code statt Passwort, Token-Rotation
+- 🔐 **Abgesichert** — HMAC-SHA256-Signaturprüfung, Pairing-Code statt Passwort, automatische Reauth bei abgelegtem Token
+- 🩺 **Diagnostik & Reparaturen** — Fehler landen als klickbarer Reparatur-Hinweis im HA-UI, Konfig-Dump für Issue-Reports
+- ⬆️ **Update-Anzeige** — `update.opengym_*` zeigt, ob die Instanz hinter dem offiziellen Release steht
 
 ## Installation
 
@@ -100,8 +104,11 @@ Aus openGyms Muskelkarte für 246 Übungen, abgedeckt 14 Gruppen (`chest`, `delt
 - `sensor.opengym_muscle_<gruppe>` — Tage seit der letzten Einheit (`999` = noch nie)
 - `binary_sensor.opengym_muscle_<gruppe>_recovering` — `on`, solange die Gruppe (< 2 Tage) noch erholt
 - `binary_sensor.opengym_rest_day` — `on`, wenn heute keine Einheit geplant ist
+- `binary_sensor.opengym_worked_out_today` / `_this_week` — Trainiert-Trigger für Automationen
 - `binary_sensor.opengym_active_workout` — `on`, solange live gehoben wird (mit Attributen: Name, Übung, Sätze). Benötigt Admin-Rechte auf der openGym-Instanz — ohne sie bleibt der Sensor unavailable.
 - `calendar.opengym_training_plan` — Wochenplan inkl. Tages-Overrides
+- `calendar.opengym_workout_history` — abgeschlossene Workouts als Kalender
+- `update.opengym_open_gym_instanz` — zeigt an, wenn die Instanz hinter dem offiziellen Release steht
 
 ### Automationen ohne YAML
 
@@ -124,6 +131,21 @@ data:
 action: opengym.trigger_test_event
 data:
   event_type: workout.finished
+```
+
+### Antwort-Services (read-only, für Vorlagen und Skripte)
+
+```yaml
+# Workout-Verlauf mit Summary — ideal für Wochenberichte
+action: opengym.get_workout_history
+data:
+  days: 7
+response_variable: history
+# -> history.summary: { total_workouts, total_volume, workout_days, avg_duration_min, unit }
+
+# Routinen mit Übungen — z.B. für Dashboard-Auswahl
+action: opengym.get_routines
+response_variable: routines
 ```
 
 ### Events

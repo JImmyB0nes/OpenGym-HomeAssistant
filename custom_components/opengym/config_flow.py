@@ -7,7 +7,12 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_URL
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
@@ -48,10 +53,33 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(
         self, entry_data: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Session expired — pair a new code."""
+    ) -> ConfigFlowResult:
+        """Session invalid — ask for a new pairing code."""
         self._url = entry_data[CONF_URL]
-        return await self.async_step_pair()
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            client = OpenGymApiClient(self.hass, self._url)
+            try:
+                token = await client.redeem_pairing_code(user_input["code"].strip())
+            except OpenGymError:
+                return self.async_show_form(
+                    step_id="reauth_confirm",
+                    data_schema=vol.Schema({vol.Required("code"): cv.string}),
+                    errors={"base": "invalid_code"},
+                )
+            return self.async_update_reload_and_abort(
+                self._get_reauth_entry(),
+                data={**self._get_reauth_entry().data, CONF_TOKEN: token},
+            )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required("code"): cv.string}),
+            description_placeholders={"url": self._url},
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

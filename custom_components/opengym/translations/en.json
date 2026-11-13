@@ -2,20 +2,23 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect openGym",
-        "description": "The address of your openGym instance (https://github.com/DuarteSantos8/openGym).",
         "data": {
           "url": "URL"
         }
       },
       "pair": {
-        "title": "Pair openGym",
-        "description": "Code in openGym erstellen: Einstellungen → Integrationen → „Die App koppeln“.\nOptional webhook hardening: paste the signing secret from Settings -> Integrations -> Webhooks.",
         "data": {
-          "code": "Pairing-Code",
+          "code": "Pairing code",
           "name": "Name",
-          "secret": "Signing Secret (optional)",
-          "auto_webhook": "Set up webhook automatically"
+          "auto_webhook": "Set up webhook automatically",
+          "secret": "Signing secret (optional)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "openGym re-pair",
+        "description": "The openGym session is no longer valid. Create a new pairing code in openGym (Settings → Integrations → \"Pair the mobile app\") and enter it here.",
+        "data": {
+          "code": "Pairing code"
         }
       }
     },
@@ -63,6 +66,24 @@
       "total_lifting": {
         "name": "Total lifted"
       },
+      "goal_weight": {
+        "name": "Goal weight"
+      },
+      "days_since_workout": {
+        "name": "Days since last workout"
+      },
+      "personal_records": {
+        "name": "Personal records"
+      },
+      "workout_heart_rate": {
+        "name": "Workout heart rate"
+      },
+      "best_one_rm": {
+        "name": "Estimated 1RM"
+      },
+      "custom_exercises": {
+        "name": "Custom exercises"
+      },
       "muscle_chest": {
         "name": "Chest idle days"
       },
@@ -104,29 +125,20 @@
       },
       "muscle_abs": {
         "name": "Core idle days"
-      },
-      "goal_weight": {
-        "name": "Goal weight"
-      },
-      "days_since_workout": {
-        "name": "Days since last workout"
-      },
-      "personal_records": {
-        "name": "Personal records"
-      },
-      "workout_heart_rate": {
-        "name": "Workout heart rate"
-      },
-      "best_one_rm": {
-        "name": "Estimated 1RM"
-      },
-      "custom_exercises": {
-        "name": "Custom exercises"
       }
     },
     "binary_sensor": {
       "rest_day": {
         "name": "Rest day"
+      },
+      "active_workout": {
+        "name": "Active workout"
+      },
+      "worked_out_today": {
+        "name": "Worked out today"
+      },
+      "worked_out_this_week": {
+        "name": "Worked out this week"
       },
       "muscle_chest_recovering": {
         "name": "Chest recovering"
@@ -169,35 +181,38 @@
       },
       "muscle_abs_recovering": {
         "name": "Core recovering"
-      },
-      "active_workout": {
-        "name": "Active workout"
       }
     },
     "calendar": {
       "training_plan": {
         "name": "Training plan"
+      },
+      "workout_history": {
+        "name": "Workout history"
+      }
+    },
+    "update": {
+      "instance_update": {
+        "name": "openGym instance"
       }
     }
   },
   "services": {
     "log_weighin": {
       "name": "Log weigh-in",
-      "description": "Logs a weigh-in into openGym (scale -> openGym)."
+      "description": "Writes a weigh-in into openGym (scale -> openGym)."
     },
     "trigger_test_event": {
       "name": "Send test event",
       "description": "Makes openGym deliver a test webhook event right away."
-    }
-  },
-  "device_automation": {
-    "trigger_type": {
-      "workout_finished": "Workout finished",
-      "personal_record": "New personal record",
-      "weighin_logged": "Weigh-in logged"
     },
-    "action_type": {
-      "log_weighin": "Log weigh-in"
+    "get_workout_history": {
+      "name": "Get workout history",
+      "description": "Returns workouts with summary and set detail for the last N days. Response variable for templates."
+    },
+    "get_routines": {
+      "name": "Get routines",
+      "description": "Returns the saved routines with their exercises. Response variable for templates."
     }
   }
 }

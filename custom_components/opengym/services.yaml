@@ -34,3 +34,22 @@ trigger_test_event:
       default: workout.finished
     entry_id:
       example: 01ABCDEF...
+
+get_workout_history:
+  fields:
+    days:
+      selector:
+        number:
+          min: 1
+          max: 365
+          step: 1
+          mode: slider
+      default: 30
+    entry_id:
+      example: 01ABCDEF...
+
+get_routines:
+  fields:
+    entry_id:
+      example: 01ABCDEF...
+

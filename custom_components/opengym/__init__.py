@@ -17,7 +17,7 @@ import voluptuous as vol
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
@@ -36,6 +36,8 @@ from .const import (
     DOMAIN,
     EVENT_TYPES,
     HEADER_SIGNATURE,
+    SERVICE_GET_ROUTINES,
+    SERVICE_GET_WORKOUT_HISTORY,
     SERVICE_LOG_WEIGHIN,
     SERVICE_TRIGGER_TEST,
 )
@@ -44,7 +46,27 @@ from .security import verify_signature
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.CALENDAR]
+
+def _entry_for_call(hass: HomeAssistant, call: ServiceCall):
+    """Resolve the config entry a service call targets."""
+    entry_id = call.data.get("entry_id")
+    if entry_id:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is None:
+            raise ValueError(f"unknown openGym entry: {entry_id}")
+        return entry
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        raise ValueError("no openGym config entry found")
+    return entries[0]
+
+
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.CALENDAR,
+    Platform.UPDATE,
+]
 
 type OpenGymConfigEntry = ConfigEntry[OpenGymRuntime]
 
@@ -172,6 +194,75 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
         _LOGGER.info("openGym test event: %s", result)
 
+    async def handle_get_workout_history(call: ServiceCall) -> dict[str, Any]:
+        """Return enriched workout history for the last N days."""
+        entry = _entry_for_call(hass, call)
+        runtime: OpenGymRuntime = entry.runtime_data
+        await runtime.coordinator.async_refresh()
+        state = runtime.coordinator.data
+        if state is None:
+            return {"summary": {}, "workouts": []}
+        from datetime import timedelta
+        days = int(call.data.get("days", 30))
+        start = dt_util.now().date() - timedelta(days=days)
+        workouts = state.workouts_between(start, dt_util.now().date())
+        durations = [
+            (w["end"] - w["start"]) / 60000
+            for w in workouts
+            if isinstance(w.get("start"), (int, float))
+            and isinstance(w.get("end"), (int, float))
+        ]
+        return {
+            "summary": {
+                "total_workouts": len(workouts),
+                "total_volume": round(sum(w.get("vol") or 0 for w in workouts), 1),
+                "workout_days": len({w.get("d") for w in workouts}),
+                "avg_duration_min": round(sum(durations) / len(durations), 1)
+                if durations
+                else None,
+                "unit": state.unit,
+            },
+            "workouts": [
+                {
+                    "date": w.get("d"),
+                    "name": w.get("name"),
+                    "volume": w.get("vol"),
+                    "exercises": [
+                        {
+                            "id": e.get("id"),
+                            "sets": [
+                                {"weight": s.get("w"), "reps": s.get("r")}
+                                for s in e.get("sets") or []
+                            ],
+                        }
+                        for e in w.get("entries") or []
+                    ],
+                }
+                for w in workouts
+            ],
+        }
+
+    async def handle_get_routines(call: ServiceCall) -> dict[str, Any]:
+        """Return the saved routines with their exercises."""
+        entry = _entry_for_call(hass, call)
+        runtime: OpenGymRuntime = entry.runtime_data
+        await runtime.coordinator.async_refresh()
+        state = runtime.coordinator.data
+        if state is None:
+            return {"count": 0, "routines": []}
+        return {
+            "count": len(state.routines),
+            "routines": [
+                {
+                    "id": r.get("id"),
+                    "name": r.get("name"),
+                    "emoji": r.get("emoji"),
+                    "exercises": r.get("ex") or [],
+                }
+                for r in state.routines.values()
+            ],
+        }
+
     if DOMAIN not in hass.data.get("_opengym_services", set()):
         hass.services.async_register(
             DOMAIN,
@@ -196,6 +287,27 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     vol.Optional("entry_id"): cv.string,
                 }
             ),
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_GET_WORKOUT_HISTORY,
+            handle_get_workout_history,
+            schema=vol.Schema(
+                {
+                    vol.Optional("days", default=30): vol.All(
+                        vol.Coerce(int), vol.Range(min=1, max=365)
+                    ),
+                    vol.Optional("entry_id"): cv.string,
+                }
+            ),
+            supports_response=SupportsResponse.ONLY,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_GET_ROUTINES,
+            handle_get_routines,
+            schema=vol.Schema({vol.Optional("entry_id"): cv.string}),
+            supports_response=SupportsResponse.ONLY,
         )
         hass.data.setdefault("_opengym_services", set()).add(DOMAIN)
 
