@@ -84,6 +84,9 @@
       "custom_exercises": {
         "name": "Custom exercises"
       },
+      "muscle_balance": {
+        "name": "Muscle balance"
+      },
       "muscle_chest": {
         "name": "Chest idle days"
       },

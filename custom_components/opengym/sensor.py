@@ -35,6 +35,7 @@ STATIC_SENSORS = (
     ("workout_heart_rate", "Workout heart rate", "hr"),
     ("best_one_rm", "Estimated 1RM", "one_rm"),
     ("custom_exercises", "Custom exercises", "custom_ex"),
+    ("muscle_balance", "Muscle balance", "balance"),
 )
 
 
@@ -86,6 +87,10 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             self._attr_icon = "mdi:weight"
         elif kind == "custom_ex":
             self._attr_icon = "mdi:pencil-ruler"
+        elif kind == "balance":
+            self._attr_icon = "mdi:human-handsup"
+            self._attr_state_class = SensorStateClass.TOTAL
+            self._attr_native_unit_of_measurement = "sets"
         elif kind in ("volume", "total"):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif kind == "count":
@@ -163,6 +168,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return round(max(best.values()), 1) if best else None
         if self._kind == "custom_ex":
             return state.custom_ex_count()
+        if self._kind == "balance":
+            return round(sum(state.week_sets(date.today()).values()), 1)
         return None
 
     @property
@@ -225,6 +232,19 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 str(ex.get("id")): ex.get("n")
                 for ex in (state.raw.get("customEx") or [])
                 if ex.get("n")
+            }
+        if self._kind == "balance":
+            today = date.today()
+            targets = state.muscle_targets()
+            return {
+                "week_start": state.week_start(today).isoformat(),
+                "sets": state.week_sets(today),
+                "targets": {m: list(r) for m, r in targets.items()},
+                "last_trained": state.muscle_last_days(today),
+                "best_1rm": {
+                    m: round(v, 1) for m, v in state.best_muscle_1rm().items()
+                },
+                "unit": state.unit,
             }
         return {}
 

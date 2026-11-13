@@ -2,10 +2,30 @@
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
+from pathlib import Path
 from typing import Final
 
 DOMAIN = "opengym"
+
+MANIFEST_PATH = Path(__file__).parent / "manifest.json"
+try:
+    INTEGRATION_VERSION: Final[str] = json.loads(
+        MANIFEST_PATH.read_text(encoding="utf-8")
+    ).get("version", "0.0.0")
+except (OSError, ValueError):  # pragma: no cover
+    INTEGRATION_VERSION = "0.0.0"
+
+# Static path the bundled frontend (card + body geometry) is served from.
+URL_BASE: Final[str] = "/opengym"
+JSMODULES: Final[list[dict[str, str]]] = [
+    {
+        "name": "openGym Muscle Card",
+        "filename": "opengym-muscle-card.js",
+        "version": INTEGRATION_VERSION,
+    }
+]
 
 CONF_URL = "url"
 CONF_TOKEN = "token"
@@ -54,6 +74,7 @@ MUSCLES: Final[dict[str, str]] = {
     "biceps": "Biceps",
     "triceps": "Triceps",
     "forearms": "Forearms",
+    # (kept for entity-id stability; openGym's map calls this `forearm`, see _CANON)
     "quadriceps": "Quadriceps",
     "hamstring": "Hamstrings",
     "adductors": "Adductors",
@@ -61,6 +82,37 @@ MUSCLES: Final[dict[str, str]] = {
     "gluteal": "Glutes",
     "abs": "Core",
 }
+
+# openGym's muscle map spells a few slugs differently than our entity keys.
+_CANON: Final[dict[str, str]] = {"forearm": "forearms"}
+
+# Weekly working sets per main muscle group: [low, high] (openGym's hypertrophy
+# volume landmarks, same defaults the openGym app ships in muscle-targets.js).
+# User overrides live in the state document as `muscleTargets`.
+MUSCLE_TARGETS: Final[dict[str, tuple[int, int]]] = {
+    "chest": (10, 20),
+    "upper-back": (10, 20),
+    "deltoids": (8, 20),
+    "biceps": (8, 18),
+    "triceps": (6, 16),
+    "quadriceps": (8, 18),
+    "hamstring": (6, 16),
+    "gluteal": (4, 16),
+    "calves": (8, 16),
+    "abs": (6, 16),
+}
+
+# Slugs the body map is drawn for, in head-to-toe order (openGym's MUSCLES).
+MAP_SLUGS: Final[tuple[str, ...]] = (
+    "trapezius", "deltoids", "chest", "upper-back", "serratus",
+    "biceps", "triceps", "forearm",
+    "abs", "obliques", "lower-back",
+    "gluteal", "quadriceps", "hamstring", "adductors", "hip-flexors",
+    "calves", "tibialis",
+)
+
+# A supporting muscle counts this much against a primary (openGym's SECONDARY).
+SECONDARY_WEIGHT: Final[float] = 0.4
 
 # Days a muscle counts as still recovering after being trained.
 RECOVERY_DAYS = 2

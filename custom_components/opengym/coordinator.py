@@ -22,7 +22,17 @@ from .api import (
     OpenGymError,
     OpenGymUnauthorizedError,
 )
-from .const import DOMAIN, EPLEY_K, MUSCLES, RECOVERY_DAYS, SCAN_INTERVAL
+from .const import (
+    DOMAIN,
+    EPLEY_K,
+    MAP_SLUGS,
+    MUSCLE_TARGETS,
+    MUSCLES,
+    RECOVERY_DAYS,
+    SCAN_INTERVAL,
+    SECONDARY_WEIGHT,
+    _CANON,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -183,6 +193,104 @@ class OpenGymState:
 
     # --- muscle coverage ----------------------------------------------------
 
+    @staticmethod
+    def _entry_muscles(info: dict[str, Any]) -> dict[str, float]:
+        """Muscle -> weight for one exercise map entry (primaries 1.0, secondaries 0.4)."""
+        weights = info.get("muscleWeights")
+        if isinstance(weights, dict):
+            return {m: float(w) for m, w in weights.items() if isinstance(w, (int, float)) and w > 0}
+        out = {m: 1.0 for m in info.get("primaries") or []}
+        for m in info.get("secondaries") or []:
+            out.setdefault(m, SECONDARY_WEIGHT)
+        return out
+
+    @staticmethod
+    def _working_sets(sets: list[dict[str, Any]] | None) -> int:
+        """Sets actually ticked off, warm-ups left out (openGym's counting)."""
+        n = 0
+        for s in sets or []:
+            if s.get("warmup") is True or s.get("phase") == "warmup":
+                continue
+            sides = s.get("sides") or {}
+            done = s.get("done")
+            if done is None and sides:
+                done = sides.get("L", {}).get("done") is True and sides.get("R", {}).get("done") is True
+            if done:
+                n += 1
+        return n
+
+    def week_start(self, today: date) -> date:
+        return today - timedelta(days=today.weekday())
+
+    def week_sets(self, today: date) -> dict[str, float]:
+        """Effective working sets per muscle for this calendar week.
+
+        A set credits each primary muscle with 1.0 and each supporting muscle
+        with 0.4 — the same weighting openGym's own muscle map uses.
+        """
+        monday = self.week_start(today)
+        load: dict[str, float] = {}
+        for workout in self.workouts_between(monday, today):
+            for entry in workout.get("entries") or []:
+                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                if not info:
+                    continue
+                sets = self._working_sets(entry.get("sets"))
+                if not sets:
+                    continue
+                for muscle, weight in self._entry_muscles(info).items():
+                    load[muscle] = round(load.get(muscle, 0) + weight * sets, 4)
+        return load
+
+    def muscle_last_days(self, today: date) -> dict[str, str | None]:
+        """ISO date each muscle was last trained (primaries + weighted secondaries)."""
+        last: dict[str, date] = {}
+        for workout in reversed(self.workouts):
+            day = _day(workout.get("d"))
+            if not day:
+                continue
+            for entry in workout.get("entries") or []:
+                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                if not info:
+                    continue
+                for muscle in self._entry_muscles(info):
+                    last.setdefault(muscle, day)
+            if len(last) >= len(MAP_SLUGS):
+                break
+        return {m: (d.isoformat() if (d := last.get(m)) else None) for m in MAP_SLUGS}
+
+    def muscle_targets(self) -> dict[str, tuple[int, int]]:
+        """Weekly [low, high] set ranges: openGym defaults, user overrides win."""
+        out = dict(MUSCLE_TARGETS)
+        raw = self.raw.get("muscleTargets") or {}
+        for slug, pair in raw.items():
+            if isinstance(pair, (list, tuple)) and len(pair) == 2:
+                try:
+                    lo, hi = int(pair[0]), int(pair[1])
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= lo <= hi <= 40:
+                    out[slug] = (lo, hi)
+        return out
+
+    def best_muscle_1rm(self) -> dict[str, float]:
+        """Best Epley 1RM estimate per muscle (primary credit only)."""
+        best: dict[str, float] = {}
+        for workout in self.workouts:
+            for entry in workout.get("entries") or []:
+                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                if not info:
+                    continue
+                for s in entry.get("sets") or []:
+                    w, r = s.get("w"), s.get("r")
+                    if not isinstance(w, (int, float)) or not w:
+                        continue
+                    est = w * (1 + (r or 0) / EPLEY_K)
+                    for muscle, weight in self._entry_muscles(info).items():
+                        if weight >= 1.0:
+                            best[muscle] = max(best.get(muscle, 0), est)
+        return best
+
     def muscle_days(self, today: date) -> dict[str, int]:
         """Days since each muscle group was last trained (primaries + weighted
         secondaries). Muscles never trained get 999."""
@@ -199,7 +307,7 @@ class OpenGymState:
                 weights = info.get("muscleWeights") or {}
                 muscles |= {m for m, w in weights.items() if w and w >= 0.3}
                 for muscle in muscles:
-                    last.setdefault(muscle, day)
+                    last.setdefault(_CANON.get(muscle, muscle), day)
             if len(last) >= len(MUSCLES):
                 break
         return {
