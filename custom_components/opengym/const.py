@@ -13,6 +13,7 @@ CONF_SECRET = "secret"
 CONF_NAME = "name"
 CONF_WEBHOOK_ID = "webhook_id"
 CONF_POLL_INTERVAL = "poll_interval"
+CONF_AUTO_WEBHOOK = "auto_webhook"
 
 ATTR_EVENT_ID = "event_id"
 ATTR_EVENT_TYPE = "event_type"
@@ -61,5 +62,12 @@ MUSCLES: Final[dict[str, str]] = {
 
 # Days a muscle counts as still recovering after being trained.
 RECOVERY_DAYS = 2
+
+# Presence counts as "training now" for at most this many seconds after the
+# last heartbeat (openGym expires live entries after 70 s).
+PRESENCE_MAX_AGE = 90
+
+# Epley estimate for 1RM: w * (1 + r / K)
+EPLEY_K = 30
 
 SCAN_INTERVAL = timedelta(minutes=DEFAULT_POLL_INTERVAL)

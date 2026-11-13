@@ -14,7 +14,8 @@
         "data": {
           "code": "Pairing-Code",
           "name": "Name",
-          "secret": "Signing Secret (optional)"
+          "secret": "Signing Secret (optional)",
+          "auto_webhook": "Webhook automatisch einrichten"
         }
       }
     },
@@ -115,6 +116,12 @@
       },
       "workout_heart_rate": {
         "name": "Workout-Puls"
+      },
+      "best_one_rm": {
+        "name": "Geschätztes 1RM"
+      },
+      "custom_exercises": {
+        "name": "Eigene Übungen"
       }
     },
     "binary_sensor": {
@@ -162,6 +169,9 @@
       },
       "muscle_abs_recovering": {
         "name": "Core in Erholung"
+      },
+      "active_workout": {
+        "name": "Aktives Workout"
       }
     },
     "calendar": {

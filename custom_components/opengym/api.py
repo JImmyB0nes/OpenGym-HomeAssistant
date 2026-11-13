@@ -91,6 +91,31 @@ class OpenGymApiClient:
             self.token = token
         return data
 
+    async def admin_users(self) -> list[dict[str, Any]] | None:
+        """Admin rows with live presence; None when not an admin."""
+        try:
+            data = await self._request("GET", "/api/admin/users")
+        except OpenGymConnectionError as err:
+            if "403" in str(err):
+                return None
+            raise
+        return data.get("users") or []
+
+    async def connect_webhook(
+        self, url: str, label: str, events: list[str]
+    ) -> dict[str, Any]:
+        """Create a webhook connection; the answer reveals the secret once."""
+        return await self._request(
+            "POST",
+            "/api/integrations/connect",
+            payload={
+                "provider": "webhook",
+                "url": url,
+                "label": label,
+                "events": events,
+            },
+        )
+
     # --- state ------------------------------------------------------------
 
     async def get_state(self) -> tuple[dict[str, Any] | None, int]:

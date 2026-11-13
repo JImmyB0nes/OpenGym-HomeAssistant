@@ -18,6 +18,7 @@ from homeassistant.helpers.selector import (
 
 from .api import OpenGymApiClient, OpenGymError
 from .const import (
+    CONF_AUTO_WEBHOOK,
     CONF_NAME,
     CONF_POLL_INTERVAL,
     CONF_SECRET,
@@ -89,6 +90,20 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(secrets.token_hex(8))
                 self._abort_if_unique_id_configured()
+                auto_webhook = bool(user_input.get(CONF_AUTO_WEBHOOK))
+                if auto_webhook and not user_input.get(CONF_SECRET, "").strip():
+                    # the integration creates the connection itself; the secret
+                    # arrives with the first setup, not from the user
+                    return self.async_create_entry(
+                        title=user_input.get(CONF_NAME) or "openGym",
+                        data={
+                            CONF_URL: self._url,
+                            CONF_TOKEN: self._token,
+                            CONF_WEBHOOK_ID: f"{DOMAIN}_{secrets.token_hex(8)}",
+                            CONF_SECRET: "",
+                            CONF_AUTO_WEBHOOK: True,
+                        },
+                    )
                 return self.async_create_entry(
                     title=user_input.get(CONF_NAME) or "openGym",
                     data={
@@ -96,12 +111,15 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_TOKEN: self._token,
                         CONF_WEBHOOK_ID: f"{DOMAIN}_{secrets.token_hex(8)}",
                         CONF_SECRET: user_input.get(CONF_SECRET, "").strip(),
+                        CONF_AUTO_WEBHOOK: False,
                     },
                 )
 
         description = (
             "In openGym: Einstellungen → Integrationen → „Die App koppeln“, Code "
-            "erstellen und hier eintragen. Der Code ist 5 Minuten gültig."
+            "erstellen und hier eintragen. Der Code ist 5 Minuten gültig.\n\n"
+            "„Webhook automatisch einrichten“ legt die Webhook-Verbindung in openGym "
+            "selbst an (dafür muss Home Assistant für openGym erreichbar sein)."
         )
         return self.async_show_form(
             step_id="pair",
@@ -110,6 +128,7 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required("code"): cv.string,
                     vol.Optional(CONF_NAME, default="openGym"): cv.string,
+                    vol.Optional(CONF_AUTO_WEBHOOK, default=False): cv.boolean,
                     vol.Optional(CONF_SECRET, default=""): cv.string,
                 }
             ),

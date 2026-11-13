@@ -26,6 +26,7 @@ from .api import OpenGymApiClient, OpenGymError
 from .const import (
     ATTR_EVENT_ID,
     ATTR_EVENT_TYPE,
+    CONF_AUTO_WEBHOOK,
     CONF_POLL_INTERVAL,
     CONF_SECRET,
     CONF_TOKEN,
@@ -67,6 +68,14 @@ class OpenGymRuntime:
             handle_args=(self,),
         )
         await self.coordinator.async_config_entry_first_refresh()
+
+    async def async_connect_webhook(self) -> str | None:
+        """Create the webhook connection in openGym; returns the new secret."""
+        url = webhook.async_generate_url(self.hass, self.entry.data[CONF_WEBHOOK_ID])
+        answer = await self.client.connect_webhook(
+            url, "Home Assistant", list(EVENT_TYPES)
+        )
+        return (answer.get("reveal") or {}).get("secret")
 
     async def async_unload(self) -> None:
         """Unregister the webhook route."""
@@ -198,6 +207,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
     runtime = OpenGymRuntime(hass, entry)
     await runtime.async_setup()
     entry.runtime_data = runtime
+
+    # One-time: create the webhook connection in openGym (opt-in via config flow).
+    if entry.data.get(CONF_AUTO_WEBHOOK):
+        try:
+            secret = await runtime.async_connect_webhook()
+            if secret:
+                hass.config_entries.async_update_entry(
+                    entry,
+                    data={**entry.data, CONF_SECRET: secret, CONF_AUTO_WEBHOOK: False},
+                )
+                _LOGGER.info("openGym: webhook connection created in openGym")
+        except OpenGymError as err:
+            _LOGGER.warning(
+                "openGym: could not create the webhook connection automatically (%s); "
+                "add it manually in Settings -> Integrations -> Webhooks",
+                err,
+            )
 
     # Persist a possibly renewed Bearer token (openGym rotates it at /api/me).
     if token := runtime.client.token:

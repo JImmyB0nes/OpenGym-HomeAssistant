@@ -23,11 +23,13 @@ Sie funktioniert zweigleisig:
 
 ## Features
 
-- 🏋️ **12 Stamm-Sensoren** — letztes Workout, Wochen-Volumen, Streak, nächste Einheit, Zielgewicht u.v.m.
+- 🏋️ **14 Stamm-Sensoren** — letztes Workout, Wochen-Volumen, Streak, nächste Einheit, geschätztes 1RM u.v.m.
 - 💪 **28 Muskel-Sensoren** — Idle-Tage und Erholungsstatus für 14 Muskelgruppen, aus openGyms echter Muskelkarte (246 Übungen)
+- 🟢 **Live-Training** — `binary_sensor.opengym_active_workout` zeigt, ob gerade wirklich gehoben wird
 - 📅 **Kalender** — der Wochentagsplan als Entität, die jeder Karten- und Kalender-Card versteht
 - 🔔 **Device-Trigger & -Actions** — Automationen ohne YAML: *„Wenn das openGym-Gerät ein Workout abschließt …“*
 - ⚖️ **Zwei-Wege** — `log_weighin` schreibt die Waage zurück in openGym, `trigger_test_event` testet die Leitung
+- 🪄 **Auto-Webhook** — beim Koppeln richtet die Integration die Webhook-Verbindung in openGym gleich selbst ein
 - 🔐 **Abgesichert** — HMAC-SHA256-Signaturprüfung, Pairing-Code statt Passwort, Token-Rotation
 
 ## Installation
@@ -64,9 +66,11 @@ Danach den `api`-Container neu starten.
 
 ### 3. Koppeln
 
-In openGym unter *Einstellungen → Integrationen → „Die App koppeln“* einen Code erstellen (5 Min. gültig) und im Dialog eingeben. Optional das Signing Secret der Webhooks mitgeben.
+In openGym unter *Einstellungen → Integrationen → „Die App koppeln“* einen Code erstellen (5 Min. gültig) und im Dialog eingeben.
 
-Anschließend zeigt die Integrationsseite die **Webhook-URL** (`/api/webhook/…`) — diese in openGym unter *Einstellungen → Integrationen → Webhooks* als Webhook eintragen, damit die Live-Events ankommen.
+**„Webhook automatisch einrichten“** anklicken — dann legt die Integration die Webhook-Verbindung in openGym selbst an und übernimmt das Signing Secret automatisch. Dazu muss Home Assistant für den openGym-Server erreichbar sein (LAN genügt, wenn `INTEGRATIONS_ALLOW_LAN=1` gesetzt ist).
+
+Ohne Haken: Die Integrationsseite zeigt die **Webhook-URL** (`/api/webhook/…`) — diese manuell in openGym unter *Einstellungen → Integrationen → Webhooks* eintragen.
 
 ## Was die Integration anlegt
 
@@ -86,6 +90,8 @@ Anschließend zeigt die Integrationsseite die **Webhook-URL** (`/api/webhook/…
 | `sensor.opengym_goal_weight` | Zielgewicht mit `delta` und `at_or_below_goal` |
 | `sensor.opengym_personal_records` | Anzahl Bestgewichte, alle je Übung als Attribut |
 | `sensor.opengym_workout_heart_rate` | Ø Puls des letzten Workouts (wenn HF-Sätze vorhanden) |
+| `sensor.opengym_best_one_rm` | bestes geschätztes 1RM (Epley), alle Übungen als Attribut |
+| `sensor.opengym_custom_exercises` | Anzahl eigener Übungen (Liste als Attribut) |
 
 ### Muskeln & Erholung
 
@@ -94,6 +100,7 @@ Aus openGyms Muskelkarte für 246 Übungen, abgedeckt 14 Gruppen (`chest`, `delt
 - `sensor.opengym_muscle_<gruppe>` — Tage seit der letzten Einheit (`999` = noch nie)
 - `binary_sensor.opengym_muscle_<gruppe>_recovering` — `on`, solange die Gruppe (< 2 Tage) noch erholt
 - `binary_sensor.opengym_rest_day` — `on`, wenn heute keine Einheit geplant ist
+- `binary_sensor.opengym_active_workout` — `on`, solange live gehoben wird (mit Attributen: Name, Übung, Sätze). Benötigt Admin-Rechte auf der openGym-Instanz — ohne sie bleibt der Sensor unavailable.
 - `calendar.opengym_training_plan` — Wochenplan inkl. Tages-Overrides
 
 ### Automationen ohne YAML
