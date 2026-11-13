@@ -214,7 +214,10 @@ class OpenGymState:
             sides = s.get("sides") or {}
             done = s.get("done")
             if done is None and sides:
-                done = sides.get("L", {}).get("done") is True and sides.get("R", {}).get("done") is True
+                # openGym: a set counts done once either side is ticked.
+                done = any(
+                    (sides.get(side) or {}).get("done") is True for side in ("L", "R")
+                )
             if done:
                 n += 1
         return n
@@ -303,10 +306,7 @@ class OpenGymState:
                 info = _MUSCLE_MAP.get(str(entry.get("id")))
                 if not info:
                     continue
-                muscles = set(info.get("primaries") or [])
-                weights = info.get("muscleWeights") or {}
-                muscles |= {m for m, w in weights.items() if w and w >= 0.3}
-                for muscle in muscles:
+                for muscle in self._entry_muscles(info):
                     last.setdefault(_CANON.get(muscle, muscle), day)
             if len(last) >= len(MUSCLES):
                 break

@@ -180,13 +180,13 @@ class OpenGymMuscleCard extends HTMLElement {
 
     const list = SLUGS
       .map((s) => ({ s, v: values[s] }))
-      .filter((x) => x.v > 0 || (mode === "sets" && targets[x.s]))
+      .filter((x) => x.v > 0 || (mode === "recovery" && (x.v >= 0 || targets[x.s])) || (mode === "sets" && targets[x.s]))
       .sort((a, b) => b.v - a.v)
       .map((x) => this._row(x.s, x.v, mode, targets[x.s], last[x.s], oneRM[x.s], unit))
       .join("");
 
     const legend = mode === "recovery"
-      ? `<div class="legend"><span>Frisch</span><i class="c l4"></i><i class="c l3"></i><i class="c l2"></i><i class="c l1"></i><i class="c l0"></i><span>Lang her</span></div>`
+      ? `<div class="legend rec"><span>Frisch</span><i class="c r4"></i><i class="c r3"></i><i class="c r2"></i><i class="c r1"></i><i class="c r0"></i><span>Lang her</span></div>`
       : `<div class="legend"><span>Weniger</span><i class="c l0"></i><i class="c l1"></i><i class="c l2"></i><i class="c l3"></i><i class="c l4"></i><span>Mehr</span></div>`;
 
     const accent = this._cfg.accent ? ` style="--accent-color: ${this._cfg.accent}"` : "";
@@ -250,7 +250,7 @@ class OpenGymMuscleCard extends HTMLElement {
       const pct = d == null ? 0 : Math.min(100, (d / 10) * 100);
       const cls = d == null ? "never" : d <= 2 ? "fresh" : d <= 5 ? "ok" : "stale";
       bar = `<div class="bar"><div class="fill ${cls}" style="width:${pct || 4}%"></div></div>`;
-      right = `<span class="val">${d == null ? "nie" : d === 1 ? "1 Tag" : d + " Tage"}</span>`;
+      right = `<span class="val">${d == null ? "nie" : d === 0 ? "heute" : d === 1 ? "1 Tag" : d + " Tage"}</span>`;
     } else {
       bar = "";
       right = `<span class="val">${rm ? fmt(rm) + " " + unit : "–"}</span>`;
@@ -292,6 +292,11 @@ class OpenGymMuscleCard extends HTMLElement {
       .c.l2 { background: color-mix(in srgb, var(--accent-color, #4caf50) 56%, transparent); }
       .c.l3 { background: color-mix(in srgb, var(--accent-color, #4caf50) 78%, transparent); }
       .c.l4 { background: var(--accent-color, #4caf50); }
+      .legend.rec .c.r1 { background: color-mix(in srgb, #ffd60a 35%, transparent); }
+      .legend.rec .c.r2 { background: #ffd60a; }
+      .legend.rec .c.r3 { background: #ff9f0a; }
+      .legend.rec .c.r4 { background: #ff453a; }
+      .legend.rec .c.r0 { background: var(--disabled-text-color, #555); opacity:.25; }
       .list { margin-top:10px; }
       .row { display:flex; align-items:center; gap:10px; padding:7px 2px; cursor:pointer; border-bottom:1px solid rgba(128,128,128,.12); }
       .row:last-child { border-bottom:none; }
