@@ -90,8 +90,9 @@ class TestImports(unittest.TestCase):
         _mod("homeassistant.helpers.entity", ["Entity"])
         _mod("homeassistant.helpers.device_registry", ["DeviceInfo"])
         _mod("homeassistant.helpers.service", [])
-        _mod("homeassistant.helpers.config_validation",
-             ["date", "string", "boolean", "positive_time_period"])
+        cv = _mod("homeassistant.helpers.config_validation",
+                  ["date", "string", "boolean", "positive_time_period"])
+        _mod("homeassistant.helpers.network", ["NoURLAvailableError"])
         _mod("homeassistant.helpers.issue_registry", ["IssueRegistry"])
         uc = _mod("homeassistant.helpers.update_coordinator",
                   ["UpdateFailed", "CoordinatorEntity"])
@@ -132,6 +133,8 @@ class TestImports(unittest.TestCase):
         da.DeviceAutomationType = _enum("DeviceAutomationType", "TRIGGER CONDITION ACTION")
         da.TriggerDeviceAutomationSchema = chain
         da.ActionDeviceAutomationSchema = chain
+        da.DEVICE_TRIGGER_BASE_SCHEMA = chain
+        cv.DEVICE_ACTION_BASE_SCHEMA = chain
         da.get_device_automation_capabilities = lambda *a: {}
 
         core = sys.modules["homeassistant.core"]
