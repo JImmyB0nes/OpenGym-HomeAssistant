@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-# StaticPathConfig exists since HA 2024.7 (hacs.json declares it).
+# StaticPathConfig exists since HA 2024.7 (hacs.json requires 2024.11).
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later

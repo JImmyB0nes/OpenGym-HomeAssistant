@@ -135,6 +135,7 @@ class TestImports(unittest.TestCase):
         da.ActionDeviceAutomationSchema = chain
         da.DEVICE_TRIGGER_BASE_SCHEMA = chain
         cv.DEVICE_ACTION_BASE_SCHEMA = chain
+        cv.config_entry_only_config_schema = lambda domain: chain
         da.get_device_automation_capabilities = lambda *a: {}
 
         core = sys.modules["homeassistant.core"]

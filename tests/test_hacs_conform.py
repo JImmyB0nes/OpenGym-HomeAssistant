@@ -80,7 +80,7 @@ class TestManifest(unittest.TestCase):
         allowed = {"domain", "name", "codeowners", "config_flow", "dependencies",
                    "after_dependencies", "documentation", "integration_type",
                    "iot_class", "issue_tracker", "requirements", "version",
-                   "single_config_entry", "quality_scale", "dhcp", "zeroconf",
+                   "single_config_entry", "quality_scale", "categories", "dhcp", "zeroconf",
                    "homekit", "ssdp", "usb"}
         unknown = set(self.manifest) - allowed
         self.assertEqual(unknown, set(), f"unknown manifest keys: {unknown}")
@@ -181,7 +181,11 @@ class TestVersionCoherence(unittest.TestCase):
         if not tag:
             self.skipTest("no tags yet")
         manifest = json.loads((COMP / "manifest.json").read_text())["version"]
-        self.assertEqual(tag.lstrip("v"), manifest)
+        # The manifest may be bumped ahead of the latest tag (release pending),
+        # but must never lag behind it.
+        def _v(s):
+            return tuple(int(x) for x in re.findall(r"\d+", s)[:3])
+        self.assertGreaterEqual(_v(manifest), _v(tag.lstrip("v")))
 
 
 if __name__ == "__main__":

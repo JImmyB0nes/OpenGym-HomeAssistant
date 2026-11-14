@@ -47,7 +47,8 @@ def install() -> None:
     _module("homeassistant.components", ["websocket_api", "webhook"])
     _module("homeassistant.config_entries", ["ConfigEntry", "ConfigFlow", "OptionsFlow", "ConfigFlowResult"])
     _module("homeassistant.const", ["CONF_URL", "Platform", "UnitOfMass", "UnitOfTime", "EVENT_HOMEASSISTANT_START"])
-    _module("homeassistant.helpers.config_validation")
+    cvm = _module("homeassistant.helpers.config_validation")
+    cvm.config_entry_only_config_schema = lambda domain: None
     _module("homeassistant.helpers.typing")
     _module("homeassistant.helpers.network", ["NoURLAvailableError"])
     _module("homeassistant.util")
