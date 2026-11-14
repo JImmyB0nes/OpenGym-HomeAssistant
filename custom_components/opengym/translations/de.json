@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "openGym verbinden",
-        "description": "Adresse deiner openGym-Instanz (https://github.com/DuarteSantos8/openGym).",
+        "description": "Adresse deiner openGym-Instanz, z. B. http://192.168.1.50:3000. Das ist die URL, unter der openGym bei dir läuft (Browser-Adressleiste), nicht die GitHub-Projektseite.",
         "data": {
           "url": "URL"
         }
       },
       "pair": {
         "title": "openGym koppeln",
-        "description": "Code in openGym erstellen: Einstellungen → Integrationen → „Die App koppeln“.\nWebhook-Empfang optional: Signing Secret aus Einstellungen → Integrationen → Webhooks hier eintragen.",
+        "description": "1. Code erstellen: In openGym unter Einstellungen → Integrationen → „Die App koppeln“ einen Pairing-Code erzeugen und hier eintragen (5 Minuten gültig).\n\n2. Webhook einrichten (empfohlen, damit Home Assistant Änderungen sofort statt alle {poll_interval} Minuten per Poll erfährt): Lege in openGym unter Einstellungen → Integrationen → Webhooks eine neue Verbindung mit dieser URL an:\n{webhook_url}\nEvents: {events}. Das dabei angezeigte Signing Secret hier eintragen.\n\nOhne Webhook funktioniert die Integration trotzdem — dann werden Daten nur im Poll-Intervall aktualisiert.",
         "data": {
           "code": "Pairing-Code",
           "name": "Name",
