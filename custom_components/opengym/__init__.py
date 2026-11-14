@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
