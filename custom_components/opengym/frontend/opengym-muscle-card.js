@@ -20,7 +20,7 @@
  */
 
 const TAG = "opengym-muscle-card";
-const CARD_VERSION = "0.8.1";
+const CARD_VERSION = "0.8.2";
 
 const SLUGS = [
   "trapezius", "deltoids", "chest", "upper-back", "serratus",
