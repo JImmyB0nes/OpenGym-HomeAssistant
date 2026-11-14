@@ -39,6 +39,14 @@ Sie funktioniert zweigleisig:
 
 ## Installation
 
+### Voraussetzungen
+
+- **Home Assistant ≥ 2024.7** — die Integration nutzt APIs, die früher nicht
+  verfügbar sind (`ConfigFlowResult` seit 2024.4, `ConfigEntry`-Generics seit
+  2024.6, `StaticPathConfig` für die Dashboard-Karte seit 2024.7). Ältere
+  Installationen erkennen die Integration nicht oder melden beim Hinzufügen
+  *„Invalid handler specified“*.
+
 ### HACS *(empfohlen)*
 
 [![HACS openGym][hacs-shield]](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
