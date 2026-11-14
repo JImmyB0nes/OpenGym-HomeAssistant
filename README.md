@@ -41,6 +41,8 @@ Sie funktioniert zweigleisig:
 
 ### HACS *(empfohlen)*
 
+[![HACS openGym][hacs-shield]](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
+
 1. HACS → **⋮ → Custom Repositories** → Repository `JImmyB0nes/OpenGym-HomeAssistant`, Kategorie *Integration*
 2. Im Reiter **Integrationen** → *openGym* → **Download**
 3. Home Assistant neu starten
@@ -267,3 +269,5 @@ automation:
 ## Lizenz
 
 Diese Integration: **MIT**. openGym selbst steht unter **AGPL-3.0** — und das gezeigte Logo ist das offizielle openGym-Icon von [DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym).
+
+[hacs-shield]: https://img.shields.io/badge/HACS-openGym-orange?logo=homeassistant

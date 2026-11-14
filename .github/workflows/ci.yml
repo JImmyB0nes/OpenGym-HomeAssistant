@@ -1,0 +1,44 @@
+# HACS + hassfest validation for the openGym integration.
+#
+# - hassfest: Home Assistant's official manifest/structure validator
+# - HACS:     the same validator HACS uses for its own repository checks
+# - tests:    the pure-logic + conformity suite in tests/ (no HA install)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"  # montags, damit HACS-/hassfest-Regression früh auffällt
+
+jobs:
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integrations
+
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install pyyaml
+      - name: Run test suite
+        run: python -m unittest discover tests -v
