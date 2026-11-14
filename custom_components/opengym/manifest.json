@@ -1,12 +1,21 @@
 {
   "domain": "opengym",
   "name": "openGym",
-  "codeowners": ["@JImmyB0nes"],
+  "categories": [
+    "health_wellbeing"
+  ],
+  "codeowners": [
+    "@JImmyB0nes"
+  ],
   "config_flow": true,
-  "dependencies": ["frontend", "http", "webhook"],
+  "dependencies": [
+    "frontend",
+    "http",
+    "webhook"
+  ],
   "documentation": "https://github.com/JImmyB0nes/OpenGym-HomeAssistant",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/JImmyB0nes/OpenGym-HomeAssistant/issues",
-  "version": "0.8.2"
+  "version": "0.8.3"
 }

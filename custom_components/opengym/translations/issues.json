@@ -1,8 +1,0 @@
-{
-  "issues": {
-    "connection_error": {
-      "title": "openGym nicht erreichbar",
-      "description": "Die openGym-Instanz konnte nicht abgefragt werden.\n\nLetzter Fehler: {error}\n\nDas wird automatisch behoben, sobald der nächste Abruf erfolgreich ist."
-    }
-  }
-}
