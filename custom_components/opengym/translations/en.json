@@ -227,5 +227,15 @@
       "name": "Get routines",
       "description": "Returns the saved routines with their exercises. Response variable for templates."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "workout_finished": "Workout finished",
+      "personal_record": "Personal record",
+      "weighin_logged": "Weigh-in logged"
+    },
+    "action_type": {
+      "log_weighin": "Log weigh-in"
+    }
   }
 }
