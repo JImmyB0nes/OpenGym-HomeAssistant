@@ -28,7 +28,7 @@ jobs:
       - name: HACS validation
         uses: hacs/action@main
         with:
-          category: integrations
+          category: integration
 
   tests:
     name: tests

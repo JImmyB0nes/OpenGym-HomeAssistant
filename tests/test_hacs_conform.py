@@ -31,8 +31,8 @@ VALID_INTEGRATION_TYPES = {
     "app", "device", "entity", "hardware", "hub", "service", "system",
 }
 VALID_IOT_CLASSES = {
-    "assumed_state", "cloud_push", "cloud_poll", "local_push",
-    "local_poll", "push", "polling",
+    "assumed_state", "calculated", "cloud_push", "cloud_polling",
+    "local_polling", "local_push",
 }
 
 
