@@ -40,17 +40,24 @@ def async_setup_ws(hass: HomeAssistant) -> None:
     {
         vol.Required("type"): "opengym:detail",
         vol.Required("muscle"): str,
+        vol.Optional("entry_id"): str,
+        vol.Optional("entity_id"): str,
     }
 )
 @callback
 def ws_detail(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Return the muscle detail for one muscle of the first openGym entry."""
+    """Return the muscle detail for one muscle.
+
+    With several openGym profiles the card passes `entry_id` (from the
+    sensor's attributes) or its `entity_id`; without either the first
+    entry answers, as before.
+    """
     from .coordinator import OpenGymDataCoordinator  # local import: avoid cycles
 
-    entry = next(iter(hass.config_entries.async_entries(DOMAIN)), None)
-    if entry is None or not hasattr(entry, "runtime_data"):
+    entry = _resolve_entry(hass, msg.get("entry_id"), msg.get("entity_id"))
+    if entry is None or getattr(entry, "runtime_data", None) is None:
         connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "no openGym entry")
         return
     coordinator: OpenGymDataCoordinator | None = getattr(
@@ -65,6 +72,26 @@ def ws_detail(
         connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "unknown muscle")
         return
     connection.send_result(msg["id"], state.muscle_detail(muscle, date.today()))
+
+
+def _resolve_entry(hass: HomeAssistant, entry_id: str | None, entity_id: str | None):
+    """Config entry by id, else by the entity it owns, else the first loaded one."""
+    if not entry_id and entity_id:
+        from homeassistant.helpers import entity_registry as er
+
+        reg_entry = er.async_get(hass).async_get(entity_id)
+        entry_id = reg_entry.config_entry_id if reg_entry else None
+    if entry_id:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        return entry if entry is not None and entry.domain == DOMAIN else None
+    return next(
+        (
+            e
+            for e in hass.config_entries.async_entries(DOMAIN)
+            if getattr(e, "runtime_data", None) is not None
+        ),
+        None,
+    )
 
 
 @websocket_api.websocket_command({"type": "opengym:version"})

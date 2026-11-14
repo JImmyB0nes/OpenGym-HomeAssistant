@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
@@ -10,7 +10,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MUSCLES, RECOVERY_DAYS
+from . import logic
+from .const import MUSCLES, RECOVERY_DAYS
 from .device_info import open_gym_device_info
 from .coordinator import OpenGymDataCoordinator
 
@@ -27,6 +28,8 @@ async def async_setup_entry(
         ActiveWorkoutSensor(coordinator, entry),
         WorkedOutTodaySensor(coordinator, entry),
         WorkedOutThisWeekSensor(coordinator, entry),
+        DayDoneSensor(coordinator, entry),
+        NudgePendingSensor(coordinator, entry),
     ]
     entities += [
         MuscleRecoverySensor(coordinator, entry, muscle, label)
@@ -90,13 +93,27 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         presence = self.coordinator.presence or {}
+        state = self.coordinator.data
+        attrs: dict[str, Any] = {
+            "rest_default": state.rest_seconds() if state else None,
+            "rest_timer_ends": (
+                self.coordinator.rest_timer_end.isoformat()
+                if self.coordinator.rest_timer_end
+                else None
+            ),
+        }
         if not presence:
-            return {}
+            return attrs
+        progress = logic.presence_progress(presence)
         return {
+            **attrs,
             "name": presence.get("name"),
+            # kept from 0.9: "x/y" strings
             "exercise": f"{presence.get('exIdx', 0) + 1}/{presence.get('exTotal', 0)}",
             "sets": f"{presence.get('setsDone', 0)}/{presence.get('setsTotal', 0)}",
-            "started_at": presence.get("startedAt"),
+            **progress,
+            "started_at": _iso_ms(presence.get("startedAt")),
+            "updated_at": _iso_ms(presence.get("updatedAt")),
         }
 
 
@@ -178,3 +195,64 @@ class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySens
         if days is None:
             return None
         return 0 <= days <= RECOVERY_DAYS
+
+
+def _iso_ms(value: Any) -> str | None:
+    """openGym presence times are epoch milliseconds."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat()
+
+
+class _NudgeBase(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
+    """Today's standing from GET /api/nudge-check (the app's own nudge rule)."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, entry, key: str, name: str) -> None:
+        super().__init__(coordinator)
+        self._attr_translation_key = key
+        self._attr_name = name
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_device_info = open_gym_device_info(entry)
+
+    @property
+    def available(self) -> bool:
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.nudge_supported
+            and self.coordinator.nudge is not None
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        nudge = self.coordinator.nudge or {}
+        return {"date": nudge.get("date"), "rev": nudge.get("rev")}
+
+
+class DayDoneSensor(_NudgeBase):
+    """On once today has a workout or a day note (sick, travel...)."""
+
+    _attr_icon = "mdi:check-decagram"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "day_done", "Today done")
+
+    @property
+    def is_on(self) -> bool | None:
+        nudge = self.coordinator.nudge
+        return bool(nudge.get("done")) if nudge else None
+
+
+class NudgePendingSensor(_NudgeBase):
+    """On while openGym's nudge rule would still remind you today."""
+
+    _attr_icon = "mdi:bell-ring"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "nudge_pending", "Workout reminder due")
+
+    @property
+    def is_on(self) -> bool | None:
+        nudge = self.coordinator.nudge
+        return bool(nudge.get("nudge")) if nudge else None

@@ -7,8 +7,11 @@ and muscle coverage as entities, events and services.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
+import time
+from collections.abc import Callable
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -18,22 +21,31 @@ from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_START, Platform
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
-from .api import OpenGymApiClient, OpenGymError
+from . import logic
+from .api import OpenGymApiClient, OpenGymConflictError, OpenGymError, OpenGymFeatureOffError
 from .const import (
     ATTR_EVENT_ID,
     ATTR_EVENT_TYPE,
     CONF_AUTO_WEBHOOK,
     CONF_POLL_INTERVAL,
+    CONF_REV_INTERVAL,
+    DEFAULT_REV_INTERVAL,
+    SERVICE_ADD_DAY_NOTE,
+    SERVICE_CANCEL_REST_TIMER,
+    SERVICE_COACH_REVIEW,
+    SERVICE_MOVE_DAY,
+    SERVICE_SET_REST_DAY,
+    SERVICE_START_REST_TIMER,
     CONF_SECRET,
     CONF_TOKEN,
     CONF_URL,
     CONF_WEBHOOK_ID,
-    DEFAULT_POLL_INTERVAL,
     DOMAIN,
     EVENT_TYPES,
     HEADER_SIGNATURE,
@@ -51,17 +63,39 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _entry_for_call(hass: HomeAssistant, call: ServiceCall):
-    """Resolve the config entry a service call targets."""
+    """Resolve the (loaded) config entry a service call targets."""
     entry_id = call.data.get("entry_id")
     if entry_id:
         entry = hass.config_entries.async_get_entry(entry_id)
-        if entry is None:
-            raise ValueError(f"unknown openGym entry: {entry_id}")
-        return entry
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if not entries:
-        raise ValueError("no openGym config entry found")
-    return entries[0]
+        if entry is None or entry.domain != DOMAIN:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_entry",
+                translation_placeholders={"entry_id": str(entry_id)},
+            )
+    else:
+        entries = [
+            e for e in hass.config_entries.async_entries(DOMAIN)
+            if getattr(e, "runtime_data", None) is not None
+        ]
+        if not entries:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_entry"
+            )
+        entry = entries[0]
+    if getattr(entry, "runtime_data", None) is None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="entry_not_loaded"
+        )
+    return entry
+
+
+def _write_failed(err: Exception) -> HomeAssistantError:
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="write_failed",
+        translation_placeholders={"error": str(err)[:200]},
+    )
 
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -71,7 +105,11 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.CALENDAR,
     Platform.UPDATE,
+    Platform.BUTTON,
 ]
+
+# PUT /api/data conflict retries before giving up (409 hands back the fresh doc)
+MAX_WRITE_ATTEMPTS = 4
 
 # ``ConfigEntry[...]`` as a subscripted generic requires HA >= 2024.6
 # (ConfigEntry became Generic there). Keep the parameterized alias for
@@ -115,8 +153,41 @@ class OpenGymRuntime:
         return (answer.get("reveal") or {}).get("secret")
 
     async def async_unload(self) -> None:
-        """Unregister the webhook route."""
+        """Unregister the webhook route and stop the fast tick."""
+        self.coordinator.async_stop_fast_tick()
         webhook.async_unregister(self.hass, self.entry.data[CONF_WEBHOOK_ID])
+
+    async def async_mutate_state(
+        self, mutate: Callable[[dict[str, Any]], dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Read-modify-write the state document with a conditional PUT.
+
+        `mutate` gets a private copy of the document and returns the edited
+        one. A 409 hands back the server's current document and revision
+        (openapi putData), so the same edit is re-applied on top of it — up
+        to MAX_WRITE_ATTEMPTS times. Without `stamped` the server stamps the
+        changed sections itself.
+        """
+        state, rev = await self.client.get_state()
+        for attempt in range(1, MAX_WRITE_ATTEMPTS + 1):
+            edited = mutate(copy.deepcopy(state or {}))
+            try:
+                result = await self.client.put_state(edited, rev)
+            except OpenGymConflictError as err:
+                if attempt == MAX_WRITE_ATTEMPTS:
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN, translation_key="write_conflict"
+                    ) from err
+                _LOGGER.debug("openGym: write conflict (rev %s), retrying", err.rev)
+                state, rev = err.state, err.rev
+                if state is None:
+                    state, rev = await self.client.get_state()
+                continue
+            await self.coordinator.async_refresh()
+            return result
+        raise HomeAssistantError(  # pragma: no cover - loop always returns/raises
+            translation_domain=DOMAIN, translation_key="write_conflict"
+        )
 
     async def _handle_webhook(
         self, hass: HomeAssistant, webhook_id: str, request
@@ -166,29 +237,92 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         weight: float = call.data["weight"]
         unit: str = call.data.get("unit", "kg")
         day: str = str(call.data.get("date") or dt_util.now().date())
-        entry = hass.config_entries.async_get_entry(call.data["entry_id"]) if "entry_id" in call.data else next(
-            (e for e in hass.config_entries.async_entries(DOMAIN)), None
-        )
-        if entry is None:
-            raise ValueError("no openGym config entry found")
-        runtime: OpenGymRuntime = entry.runtime_data
-
-        state, rev = await runtime.client.get_state()
-        state = state or {}
-        entries = list(state.get("bodyweight") or [])
-        existing = next((b for b in entries if b.get("d") == day), None)
-        if existing:
-            existing["w"] = weight
-        else:
-            entries.append({"d": day, "w": weight})
-        entries.sort(key=lambda b: b.get("d") or "")
-        state["bodyweight"] = entries
-        state["unit"] = unit
+        runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
         try:
-            await runtime.client.put_state(state, rev)
+            await runtime.async_mutate_state(
+                lambda state: logic.set_weighin(state, day, weight, unit)
+            )
         except OpenGymError as err:
-            raise ValueError(f"openGym write failed: {err}") from err
-        await runtime.coordinator.async_refresh()
+            raise _write_failed(err) from err
+
+    async def _plan_edit(call: ServiceCall, edit: Callable[[dict[str, Any]], Any]) -> None:
+        runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
+        try:
+            await runtime.async_mutate_state(edit)
+        except logic.PlanEditError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=f"plan_{err.key}",
+                translation_placeholders=err.placeholders,
+            ) from err
+        except OpenGymError as err:
+            raise _write_failed(err) from err
+
+    async def handle_set_rest_day(call: ServiceCall) -> None:
+        """Mark a day as rest (or, with `clear`, drop the day's override)."""
+        day = call.data.get("date") or dt_util.now().date()
+        if call.data.get("clear"):
+            await _plan_edit(call, lambda s: logic.clear_day_override(s, day))
+        else:
+            await _plan_edit(call, lambda s: logic.set_rest_day(s, day))
+
+    async def handle_move_day(call: ServiceCall) -> None:
+        """Move the session planned on one day to another."""
+        src, dst = call.data["from_date"], call.data["to_date"]
+        await _plan_edit(call, lambda s: logic.move_day(s, src, dst))
+
+    async def handle_add_day_note(call: ServiceCall) -> None:
+        """Day note (sick, travel, rest, injured + text); excuses the day from nudges."""
+        today = dt_util.now().date()
+        day = call.data.get("date") or today
+        await _plan_edit(
+            call,
+            lambda s: logic.add_day_note(
+                s, day, today, int(time.time() * 1000),
+                call.data.get("tag"), call.data.get("text"),
+            ),
+        )
+
+    async def handle_start_rest_timer(call: ServiceCall) -> None:
+        """Have openGym push a rest-timer notification to your devices."""
+        runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
+        state = runtime.coordinator.data
+        seconds = logic.clamp_rest_seconds(
+            call.data.get("seconds"), state.rest_seconds() if state else None
+        )
+        try:
+            await runtime.client.start_rest_timer(seconds, call.data.get("device_id"))
+        except OpenGymError as err:
+            raise _write_failed(err) from err
+        runtime.coordinator.set_rest_timer(seconds)
+
+    async def handle_cancel_rest_timer(call: ServiceCall) -> None:
+        runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
+        try:
+            await runtime.client.cancel_rest_timer(call.data.get("device_id"))
+        except OpenGymError as err:
+            raise _write_failed(err) from err
+        runtime.coordinator.set_rest_timer(None)
+
+    async def handle_coach_review(call: ServiceCall) -> dict[str, Any]:
+        """Ask the openGym Coach to review the plan (answer arrives as a proposal)."""
+        runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
+        try:
+            result = await runtime.client.coach_review(
+                call.data.get("note"), call.data.get("lang")
+            )
+        except OpenGymFeatureOffError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="coach_off"
+            ) from err
+        except OpenGymError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="coach_failed",
+                translation_placeholders={"error": str(err)[:200]},
+            ) from err
+        await runtime.coordinator.async_request_refresh()
+        return {"job": (result or {}).get("job") or result}
 
     async def handle_trigger_test(call: ServiceCall) -> None:
         """Ask openGym to deliver a test webhook now."""
@@ -318,6 +452,68 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             schema=vol.Schema({vol.Optional("entry_id"): cv.string}),
             supports_response=SupportsResponse.ONLY,
         )
+        entry_field = {vol.Optional("entry_id"): cv.string}
+        device_field = {
+            vol.Optional("device_id"): vol.All(cv.string, vol.Match(r"^[A-Za-z0-9_-]{8,64}$"))
+        }
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_START_REST_TIMER,
+            handle_start_rest_timer,
+            schema=vol.Schema({
+                vol.Optional("seconds"): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+                **device_field,
+                **entry_field,
+            }),
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CANCEL_REST_TIMER,
+            handle_cancel_rest_timer,
+            schema=vol.Schema({**device_field, **entry_field}),
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_COACH_REVIEW,
+            handle_coach_review,
+            schema=vol.Schema({
+                vol.Optional("note"): vol.All(cv.string, vol.Length(max=2000)),
+                vol.Optional("lang"): vol.In(["de", "en"]),
+                **entry_field,
+            }),
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_REST_DAY,
+            handle_set_rest_day,
+            schema=vol.Schema({
+                vol.Optional("date"): cv.date,
+                vol.Optional("clear", default=False): cv.boolean,
+                **entry_field,
+            }),
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_MOVE_DAY,
+            handle_move_day,
+            schema=vol.Schema({
+                vol.Required("from_date"): cv.date,
+                vol.Required("to_date"): cv.date,
+                **entry_field,
+            }),
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_ADD_DAY_NOTE,
+            handle_add_day_note,
+            schema=vol.Schema({
+                vol.Optional("date"): cv.date,
+                vol.Optional("tag"): vol.In(list(logic.DAY_NOTE_TAGS)),
+                vol.Optional("text"): vol.All(cv.string, vol.Length(max=logic.NOTE_MAX)),
+                **entry_field,
+            }),
+        )
         hass.data.setdefault("_opengym_services", set()).add(DOMAIN)
 
     # WebSocket commands for the bundled card (detail panels, version check).
@@ -372,6 +568,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # (1) fast tick: revision check + live presence / watch / Coach job
+    runtime.coordinator.async_start_fast_tick(
+        int(entry.options.get(CONF_REV_INTERVAL, DEFAULT_REV_INTERVAL))
+    )
     return True
 
 

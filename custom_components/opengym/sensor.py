@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -10,17 +10,20 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfMass, UnitOfTime
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import PERCENTAGE, UnitOfMass, UnitOfTime
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import logic
 from .const import (
-    DOMAIN,
+    CONF_MAX_HEART_RATE,
+    DEFAULT_MAX_HEART_RATE,
     FATIGUE_HALF_LIFE_DEFAULT_H,
     FATIGUE_HALF_LIFE_H,
     INTEGRATION_VERSION,
     MUSCLES,
+    _CANON,
 )
 from .coordinator import OpenGymDataCoordinator, OpenGymState
 from .device_info import open_gym_device_info
@@ -61,6 +64,23 @@ async def async_setup_entry(
     entities += [
         MuscleDaysSensor(coordinator, entry, muscle, label) for muscle, label in MUSCLES.items()
     ]
+    # (11) long-term statistics: weekly sets per muscle
+    entities += [
+        MuscleWeeklySetsSensor(coordinator, entry, muscle, label)
+        for muscle, label in MUSCLES.items()
+    ]
+    # (2) live workout + rest timer started from HA
+    entities += [LiveProgressSensor(coordinator, entry), RestTimerSensor(coordinator, entry)]
+    # (8) Coach — only when the instance runs it (503 "off" / 404 = not created)
+    if coordinator.coach_enabled:
+        entities.append(CoachStatusSensor(coordinator, entry))
+    # (12) watch — only when the watch endpoints exist
+    if coordinator.watch_supported:
+        entities += [
+            WatchPairedSensor(coordinator, entry),
+            WatchHeartRateSensor(coordinator, entry),
+            WatchHeartRateZoneSensor(coordinator, entry),
+        ]
     async_add_entities(entities)
 
 
@@ -77,6 +97,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = open_gym_device_info(entry)
+        self._entry_id = entry.entry_id
         if kind == "weighin":
             self._attr_device_class = SensorDeviceClass.WEIGHT
             self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -209,13 +230,22 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 ),
             }
         if self._kind == "next":
-            nxt = state.next_session(date.today())
+            nxt = state.next_workout(date.today())
             if nxt:
-                routine, day = nxt
+                # `exercises` stays the count (pre-0.10 automations); details below.
                 return {
-                    "routine_id": routine.get("id"),
-                    "exercises": len(routine.get("ex") or []),
-                    "date": day.isoformat(),
+                    "routine_id": nxt["routine_id"],
+                    "exercises": len(nxt["exercises"]),
+                    "date": nxt["date"],
+                    "name": nxt["name"],
+                    "emoji": nxt["emoji"],
+                    "days_until": nxt["days_until"],
+                    "total_sets": nxt["total_sets"],
+                    "muscles": nxt["muscles"],
+                    "exercise_list": nxt["exercises"],
+                    "rest_sec": state.rest_seconds(),
+                    "unit": state.unit,
+                    "entry_id": self._entry_id,
                 }
         if self._kind == "weighin":
             b = state.last_weighin() or {}
@@ -258,6 +288,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             today = date.today()
             targets = state.muscle_targets()
             fatigue_map = state.fatigue(today)
+            goal = state.goal_weight()
+            current = (state.last_weighin() or {}).get("w")
             return {
                 "week_start": state.week_start(today).isoformat(),
                 "sets": state.week_sets(today),
@@ -272,6 +304,18 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 "day_view": state.day_view(today),
                 "history": state.week_history(today),
                 "trends": state.muscle_trends(today),
+                # (6) card stats
+                "week_prs": state.week_prs(today),
+                "weight_trend": state.weight_trend(),
+                "goal_weight": goal,
+                "goal_delta": (
+                    round(current - goal, 1)
+                    if goal is not None and current is not None
+                    else None
+                ),
+                "last_hr": state.last_workout_hr(),
+                # (5) lets the card ask *this* entry for muscle details
+                "entry_id": self._entry_id,
                 "version": INTEGRATION_VERSION,
                 "unit": state.unit,
             }
@@ -317,3 +361,228 @@ class MuscleDaysSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if state is None:
             return None
         return state.muscle_days(date.today()).get(self._muscle)
+
+
+class _Base(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, entry, key: str, name: str) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_translation_key = key
+        self._attr_name = name
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_device_info = open_gym_device_info(entry)
+
+
+class MuscleWeeklySetsSensor(_Base):
+    """Effective sets this week for one muscle — recorded as long-term statistics."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "sets"
+    _attr_icon = "mdi:chart-bar"
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator, entry, muscle: str, label: str) -> None:
+        super().__init__(
+            coordinator, entry, f"weekly_sets_{muscle.replace('-', '_')}", f"{label} weekly sets"
+        )
+        self._muscle = muscle
+        # openGym's map spells forearms `forearm`
+        self._slugs = {muscle} | {s for s, canon in _CANON.items() if canon == muscle}
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self) -> float | None:
+        state = self.coordinator.data
+        if state is None:
+            return None
+        sets = state.week_sets(date.today())
+        return round(sum(sets.get(s, 0) for s in self._slugs), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        state = self.coordinator.data
+        if state is None:
+            return {}
+        today = date.today()
+        last = state.week_sets(today, -1)
+        target = state.muscle_targets().get(self._muscle)
+        return {
+            "week_start": state.week_start(today).isoformat(),
+            "last_week": round(sum(last.get(s, 0) for s in self._slugs), 1),
+            "target": list(target) if target else None,
+        }
+
+
+class LiveProgressSensor(_Base):
+    """Progress of the workout running in openGym right now (admin presence)."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = "mdi:progress-check"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "live_progress", "Live workout progress")
+
+    @property
+    def available(self) -> bool:
+        # openGym only shares presence with admins (GET /api/admin/users)
+        return self.coordinator.last_update_success and bool(self.coordinator.is_admin)
+
+    @property
+    def native_value(self) -> int | None:
+        if not self.coordinator.presence:
+            return None
+        return logic.presence_progress(self.coordinator.presence)["progress"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        p = self.coordinator.presence
+        if not p:
+            return {"active": False}
+        return {"active": True, "name": p.get("name"), **logic.presence_progress(p)}
+
+
+class RestTimerSensor(_Base):
+    """When the rest timer started from Home Assistant ends."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:timer-sand"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "rest_timer", "Rest timer")
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    @property
+    def native_value(self):
+        return self.coordinator.rest_timer_end
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        state = self.coordinator.data
+        return {
+            "seconds": self.coordinator.rest_timer_seconds,
+            "default_seconds": state.rest_seconds() if state else None,
+        }
+
+
+class CoachStatusSensor(_Base):
+    """openGym Coach: idle, queued, running or a proposal waiting for you."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["idle", "queued", "running", "proposal"]
+    _attr_icon = "mdi:account-tie-voice"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "coach_status", "Coach")
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success and bool(self.coordinator.coach_enabled)
+
+    @property
+    def native_value(self) -> str | None:
+        return logic.coach_summary(self.coordinator.coach)["state"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        summary = logic.coach_summary(self.coordinator.coach)
+        summary.pop("state")
+        return summary
+
+
+class _WatchBase(_Base):
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success and bool(self.coordinator.watch_supported)
+
+
+class WatchPairedSensor(_WatchBase):
+    """Number of paired watches (GET /api/watch/links)."""
+
+    _attr_icon = "mdi:watch"
+    _attr_native_unit_of_measurement = "watches"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "watch_paired", "Paired watches")
+
+    @property
+    def native_value(self) -> int:
+        return len(self.coordinator.watch_links)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        links = self.coordinator.watch_links
+        seen = [link.get("seen") for link in links if isinstance(link.get("seen"), (int, float))]
+        return {
+            "watches": [{"name": link.get("name"), "seen": link.get("seen")} for link in links],
+            "last_seen": dt_from_ms(max(seen)) if seen else None,
+            "queued_events": len((self.coordinator.watch_queue or {}).get("events") or []),
+        }
+
+
+class WatchHeartRateSensor(_WatchBase):
+    """Newest heart rate the watch reported (set or rest HR)."""
+
+    _attr_native_unit_of_measurement = "bpm"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:heart-pulse"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "watch_heart_rate", "Watch heart rate")
+
+    @property
+    def available(self) -> bool:
+        return super().available and bool(self.coordinator.watch_links)
+
+    @property
+    def native_value(self) -> int | None:
+        hr = self.coordinator.watch_hr
+        return hr["avg"] if hr else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        hr = self.coordinator.watch_hr or {}
+        return {
+            "max": hr.get("max"),
+            "phase": hr.get("phase"),
+            "event": hr.get("type"),
+            "measured_at": dt_from_ms(hr["at"]) if hr.get("at") else None,
+        }
+
+
+class WatchHeartRateZoneSensor(_WatchBase):
+    """Heart-rate zone 1-5 (% of max HR from the integration options)."""
+
+    _attr_icon = "mdi:heart-flash"
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "watch_hr_zone", "Heart rate zone")
+
+    @property
+    def _max_hr(self) -> float:
+        return float(self._entry.options.get(CONF_MAX_HEART_RATE, DEFAULT_MAX_HEART_RATE))
+
+    @property
+    def available(self) -> bool:
+        return super().available and bool(self.coordinator.watch_links)
+
+    @property
+    def native_value(self) -> int | None:
+        hr = self.coordinator.watch_hr
+        return logic.hr_zone(hr["avg"], self._max_hr) if hr else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"max_heart_rate": self._max_hr, **logic.hr_zone_bounds(self._max_hr)}
+
+
+def dt_from_ms(ms: float) -> str:
+    """openGym timestamps are epoch milliseconds."""
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()

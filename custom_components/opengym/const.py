@@ -58,11 +58,25 @@ DEFAULT_POLL_INTERVAL = 15  # minutes
 MIN_POLL_INTERVAL = 1
 MAX_POLL_INTERVAL = 1440
 
+# Fast tick: revision check + live bits (seconds, 0 = off)
+CONF_REV_INTERVAL = "rev_interval"
+DEFAULT_REV_INTERVAL = 30
+MAX_REV_INTERVAL = 3600
+# Max heart rate for the watch HR zones (bpm)
+CONF_MAX_HEART_RATE = "max_heart_rate"
+DEFAULT_MAX_HEART_RATE = 190
+
 # Services
 SERVICE_LOG_WEIGHIN = "log_weighin"
 SERVICE_TRIGGER_TEST = "trigger_test_event"
 SERVICE_GET_WORKOUT_HISTORY = "get_workout_history"
 SERVICE_GET_ROUTINES = "get_routines"
+SERVICE_START_REST_TIMER = "start_rest_timer"
+SERVICE_CANCEL_REST_TIMER = "cancel_rest_timer"
+SERVICE_COACH_REVIEW = "coach_review"
+SERVICE_SET_REST_DAY = "set_rest_day"
+SERVICE_MOVE_DAY = "move_day"
+SERVICE_ADD_DAY_NOTE = "add_day_note"
 
 # Muscle groups from openGym's exercise-muscle map (primaries vocabulary).
 MUSCLES: Final[dict[str, str]] = {

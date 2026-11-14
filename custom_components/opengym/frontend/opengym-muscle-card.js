@@ -1,14 +1,14 @@
 /**
  * openGym Cards — Muskelbalance und Trainingswoche live im Dashboard.
  *
- * Zwei Karten, ein Modul (keine externen Abhängigkeiten, CSP-sicher):
+ * Drei Karten, ein Modul (keine externen Abhängigkeiten, CSP-sicher):
  *
  *   type: custom:opengym-muscle-card
  *   entity: sensor.opengym_muscle_balance   # Default, darf weggelassen werden
  *   title: Muskelbalance       # eigener Titel (Default: übersetzt)
  *   body: male | female        # Körpermodell (Default male)
  *   mode: sets | recovery | strength | planned
- *   show_stats: true           # Kennzahlen im Kopf (Sätze, Volumen, Serie, Zuletzt)
+ *   show_stats: true           # Kennzahlen (Sätze, Volumen, Serie, Zuletzt, PRs, Puls, Gewicht)
  *   show_list: true            # Muskelliste unter der Karte
  *   list_limit: 8              # Zeilen bis „Alle anzeigen“ (0 = alle)
  *   show_week: true            # Wochenzeile mit Pfeil-Navigation
@@ -23,11 +23,18 @@
  *   title: Trainingswoche
  *   days: 14                                # Tage ab Montag dieser Woche
  *   accent: "#a3e635"
+ *
+ *   type: custom:opengym-next-card
+ *   entity: sensor.opengym_next_session     # Default
+ *   title: Nächstes Training
+ *   max_exercises: 6                        # 0 = alle
+ *   show_muscles: true                      # Muskel-Chips
+ *   show_rest_button: true                  # Knopf „Pausentimer starten“ (opengym.start_rest_timer)
  */
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.9.0";
+const CARD_VERSION = "0.10.0";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
@@ -65,7 +72,12 @@ const UI = {
     weekOf: "Woche ab", thisWeek: "Diese Woche", prevWeek: "Vorherige Woche", nextWeek: "Nächste Woche",
     setsUnit: "Sätze", rest: "Ruhetag", planWeek: "Wochenplan", front: "Vorne", back: "Hinten",
     stats: { sets: "Sätze", volume: "Volumen", workouts: "Einheiten", streak: "Serie", last: "Zuletzt",
+      prs: "PRs (Woche)", hr: "Ø Puls", weight: "Gewicht", goal: (d) => `${d} zum Ziel`, atGoal: "Ziel erreicht",
       days: (n) => (n === 1 ? "1 Tag" : `${n} Tage`) },
+    next: { title: "Nächstes Training", none: "Kein Training geplant", noneHint: "Genieß den Ruhetag.",
+      tomorrow: "morgen", inDays: (n) => `in ${n} Tagen`, exercises: "Übungen", sets: "Sätze", rest: "Pause",
+      startRest: "Pausentimer starten", restStarted: "Pausentimer läuft", more: (n) => `+ ${n} weitere`,
+      progress: "Fortschritt", restEnds: "Pause endet" },
     live: "Training läuft",
     detail: { week: "Sätze diese Woche", last: "Zuletzt trainiert", fatigue: "Ermüdung",
       best: "Bestes 1RM", trend: "1RM-Verlauf · 12 Wochen", exercises: "Übungen (Wochen-Sätze)",
@@ -93,7 +105,12 @@ const UI = {
     weekOf: "Week of", thisWeek: "This week", prevWeek: "Previous week", nextWeek: "Next week",
     setsUnit: "sets", rest: "Rest day", planWeek: "Weekly plan", front: "Front", back: "Back",
     stats: { sets: "Sets", volume: "Volume", workouts: "Workouts", streak: "Streak", last: "Last",
+      prs: "PRs (week)", hr: "Avg HR", weight: "Weight", goal: (d) => `${d} to goal`, atGoal: "Goal reached",
       days: (n) => (n === 1 ? "1 day" : `${n} days`) },
+    next: { title: "Next workout", none: "No workout planned", noneHint: "Enjoy the rest day.",
+      tomorrow: "tomorrow", inDays: (n) => `in ${n} days`, exercises: "Exercises", sets: "Sets", rest: "Rest",
+      startRest: "Start rest timer", restStarted: "Rest timer running", more: (n) => `+ ${n} more`,
+      progress: "Progress", restEnds: "Rest ends" },
     live: "Workout in progress",
     detail: { week: "Sets this week", last: "Last trained", fatigue: "Fatigue",
       best: "Best 1RM", trend: "1RM trend · 12 weeks", exercises: "Exercises (weekly sets)",
@@ -123,6 +140,7 @@ const EDITOR_LABELS = {
     show_legend: "Farblegende", show_heatmap: "12-Wochen-Heatmap", show_detail: "Detail-Panel bei Klick",
     show_plan_week: "Wochenplan im Geplant-Modus", days: "Anzahl Tage", display: "Anzeige",
     look: "Aussehen", male: "Männlich", female: "Weiblich",
+    max_exercises: "Max. Übungen (0 = alle)", show_muscles: "Muskel-Chips", show_rest_button: "Pausentimer-Knopf",
   },
   en: {
     entity: "Entity", title: "Title (optional)", body: "Body model", mode: "Initial view",
@@ -131,6 +149,7 @@ const EDITOR_LABELS = {
     show_legend: "Colour legend", show_heatmap: "12-week heatmap", show_detail: "Detail panel on tap",
     show_plan_week: "Weekly plan in planned view", days: "Number of days", display: "Display",
     look: "Appearance", male: "Male", female: "Female",
+    max_exercises: "Max exercises (0 = all)", show_muscles: "Muscle chips", show_rest_button: "Rest timer button",
   },
 };
 
@@ -141,6 +160,9 @@ const MUSCLE_DEFAULTS = {
   show_heatmap: true, show_detail: true, show_plan_week: true,
 };
 const WEEK_DEFAULTS = { entity: DEFAULT_ENTITY, days: 14 };
+const NEXT_TAG = "opengym-next-card";
+const DEFAULT_NEXT_ENTITY = "sensor.opengym_next_session";
+const NEXT_DEFAULTS = { entity: DEFAULT_NEXT_ENTITY, max_exercises: 6, show_muscles: true, show_rest_button: true };
 
 // --- shared helpers ---------------------------------------------------------
 
@@ -436,6 +458,9 @@ class OpenGymMuscleCard extends OpenGymBase {
       streak: sibling(h, e, "streak", ["sensor.opengym_streak"]),
       last: sibling(h, e, "last_workout", ["sensor.opengym_last_workout"]),
       live: sibling(h, e, "active_workout", ["binary_sensor.opengym_active_workout"]),
+      hr: sibling(h, e, "workout_heart_rate", ["sensor.opengym_workout_heart_rate"]),
+      weight: sibling(h, e, "last_weighin", ["sensor.opengym_last_weigh_in"]),
+      prs: sibling(h, e, "personal_records", ["sensor.opengym_personal_records"]),
     };
     return [e, ...Object.values(this._ids)];
   }
@@ -461,7 +486,12 @@ class OpenGymMuscleCard extends OpenGymBase {
     try {
       const conn = this._hass?.connection;
       if (conn && conn.sendMessagePromise) {
-        const data = await conn.sendMessagePromise({ type: "opengym:detail", muscle });
+        // entry_id (from the sensor) keeps several openGym profiles apart
+        const msg = { type: "opengym:detail", muscle };
+        const entryId = this._hass.states[this._cfg.entity]?.attributes?.entry_id;
+        if (entryId) msg.entry_id = entryId;
+        else msg.entity_id = this._cfg.entity;
+        const data = await conn.sendMessagePromise(msg);
         if (this._sel === muscle && data) { this._detailData = data; this._rerender(); }
       }
     } catch { /* attribute fallback stays visible */ }
@@ -617,18 +647,50 @@ class OpenGymMuscleCard extends OpenGymBase {
     if (ok(wk)) items.push({ label: t.stats.workouts, value: esc(num(h, wk, 0)), more: cur ? null : ids.workouts });
     const streak = S[ids.streak]?.state;
     if (ok(streak)) items.push({ label: t.stats.streak, value: esc(t.stats.days(Number(streak))), more: ids.streak, hot: Number(streak) >= 3 });
+    if (!cur && ok(a.week_prs)) {
+      items.push({ label: t.stats.prs, value: esc(num(h, a.week_prs, 0)), more: ids.prs, hot: Number(a.week_prs) > 0 });
+    }
+    if (!cur && a.last_hr && ok(a.last_hr.avg)) {
+      items.push({ label: t.stats.hr, value: `${esc(num(h, a.last_hr.avg, 0))}<small> bpm</small>`, more: ids.hr });
+    }
+    const trend = Array.isArray(a.weight_trend) ? a.weight_trend.filter((p) => ok(p.w)) : [];
+    if (!cur && trend.length) {
+      const w = Number(trend[trend.length - 1].w), unit = a.unit || "kg";
+      let goal = "";
+      if (ok(a.goal_delta) && ok(a.goal_weight)) {
+        const dl = Number(a.goal_delta);
+        goal = Math.abs(dl) < 0.05
+          ? `<small class="goal ok"> · ${esc(t.stats.atGoal)}</small>`
+          : `<small class="goal"> · ${esc(t.stats.goal(`${num(h, Math.abs(dl))} ${unit}`))}</small>`;
+      }
+      items.push({ label: t.stats.weight, value: `${esc(num(h, w))}<small> ${esc(unit)}</small>${goal}`,
+        extra: this._spark(trend, a.goal_weight), more: ids.weight, half: true });
+    }
     const last = S[ids.last];
     if (last && last.state && !["unknown", "unavailable"].includes(last.state)) {
       const d = daysSince(last.attributes?.date);
       items.push({ label: t.stats.last, value: `${esc(last.state)}<small> · ${esc(relDays(t, d))}</small>`, more: ids.last, wide: true });
     }
     return `<div class="stats">${items.map((it, i) => {
-      const inner = `<span class="sl">${esc(it.label)}</span><span class="sv">${it.value}</span>`;
-      const cls = `stat${it.wide ? " wide" : ""}${it.hot ? " hot" : ""}`;
+      const inner = `<span class="sl">${esc(it.label)}</span><span class="sv">${it.value}</span>${it.extra || ""}`;
+      const cls = `stat${it.wide ? " wide" : ""}${it.half ? " half" : ""}${it.hot ? " hot" : ""}`;
       return it.more
         ? `<button class="${cls}" data-more="${esc(it.more)}" data-fk="stat${i}">${inner}</button>`
         : `<div class="${cls}">${inner}</div>`;
     }).join("")}</div>`;
+  }
+
+  /** Tiny weight sparkline; a dashed line marks the goal when it is in range. */
+  _spark(trend, goal) {
+    if (trend.length < 2) return "";
+    const W = 72, H = 20, ws = trend.map((p) => Number(p.w));
+    const g = goal != null && !Number.isNaN(Number(goal)) ? Number(goal) : null;
+    const lo = Math.min(...ws, g ?? Infinity), hi = Math.max(...ws, g ?? -Infinity);
+    const span = hi - lo || 1;
+    const y = (v) => (H - 2 - ((v - lo) / span) * (H - 4)).toFixed(1);
+    const pts = ws.map((v, i) => `${((i / (ws.length - 1)) * W).toFixed(1)},${y(v)}`).join(" ");
+    const goalLine = g != null ? `<line x1="0" x2="${W}" y1="${y(g)}" y2="${y(g)}" class="sg"/>` : "";
+    return `<svg class="wspark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${goalLine}<polyline points="${pts}"/></svg>`;
   }
 
   _tabs(mode) {
@@ -907,6 +969,13 @@ const MUSCLE_CSS = `
   .sv { font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
   .sv small { font-size:12px; font-weight:400; color: var(--og-muted); }
   .stat.hot .sv { color: var(--og-warn); }
+  .stat.half { grid-column: auto / span 2; }
+  .stat.half { position:relative; }
+  .sv .goal { color: var(--og-accent); }
+  .sv .goal.ok { color: var(--og-good); }
+  svg.wspark { position:absolute; top:9px; right:10px; overflow:visible; width:72px; height:20px; }
+  .wspark polyline { fill:none; stroke: var(--og-accent); stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round; }
+  .wspark .sg { stroke: var(--og-good); stroke-width:1; stroke-dasharray:3 3; opacity:.8; }
   .tabs { display:flex; gap:2px; padding:3px; border-radius:999px; background: var(--og-surface-2); }
   .tab { flex:1; border:none; background:transparent; padding:6px 8px; border-radius:999px; cursor:pointer; font-size:13px; font-weight:500;
          color: var(--og-muted); white-space:nowrap; transition: background .2s var(--og-ease), color .2s, box-shadow .2s; }
@@ -1149,6 +1218,148 @@ const WEEK_CSS = `
 
 customElements.define(WEEK_TAG, OpenGymWeekCard);
 
+// --- Next-workout card ----------------------------------------------------------
+
+class OpenGymNextCard extends OpenGymBase {
+  static getConfigElement() { return document.createElement("opengym-next-card-editor"); }
+
+  static getStubConfig(hass) {
+    const found = hass && Object.values(hass.entities || {})
+      .find((e) => e.platform === "opengym" && e.translation_key === "next_session");
+    return { entity: found ? found.entity_id : DEFAULT_NEXT_ENTITY };
+  }
+
+  setConfig(config) {
+    this._cfg = { ...NEXT_DEFAULTS, ...(config || {}) };
+    if (!this._cfg.entity) this._cfg.entity = DEFAULT_NEXT_ENTITY;
+    this._rerender();
+  }
+
+  getCardSize() { return 3 + Math.min(Number(this._cfg?.max_exercises) || 6, 10); }
+  getGridOptions() { return { columns: 6, min_columns: 4, min_rows: 3 }; }
+  getLayoutOptions() { return { grid_columns: 2, grid_min_columns: 2 }; }
+
+  _watched() {
+    const h = this._hass, e = this._cfg.entity;
+    this._ids = {
+      progress: sibling(h, e, "live_progress", ["sensor.opengym_live_workout_progress"]),
+      rest: sibling(h, e, "rest_timer", ["sensor.opengym_rest_timer"]),
+    };
+    return [e, ...Object.values(this._ids)];
+  }
+
+  _when(a) {
+    const t = this._t.next, h = this._hass;
+    const n = Number(a.days_until);
+    const rel = n === 0 ? this._t.today : n === 1 ? t.tomorrow : n > 1 ? t.inDays(n) : "";
+    const day = a.date ? shortDate(h, a.date, { weekday: "long", day: "numeric", month: "short" }) : "";
+    return [rel, day].filter(Boolean).join(" · ");
+  }
+
+  _dose(ex, unit) {
+    const h = this._hass;
+    const sets = Number(ex.sets) || 0;
+    let what;
+    if (ex.mode === "cardio") return `${ex.min || "?"} min`;
+    if (ex.mode === "time" || (ex.sec && !ex.reps)) what = `${ex.sec || "?"} s`;
+    else if (ex.reps_min && ex.reps_max) what = `${ex.reps_min}–${ex.reps_max}`;
+    else what = ex.reps != null ? String(ex.reps) : "?";
+    const w = Number(ex.weight);
+    return `${sets ? `${sets} × ` : ""}${what}${w > 0 ? ` · ${num(h, w)} ${unit}` : ""}`;
+  }
+
+  _render() {
+    if (!this._hass || !this._cfg) return;
+    const t = this._t, tn = t.next, S = this._hass.states, c = this._cfg;
+    const st = this._checkEntity();
+    if (!st) return;
+    const a = st.attributes || {};
+    const list = Array.isArray(a.exercise_list) ? a.exercise_list : [];
+    const title = c.title || tn.title;
+    if (!a.routine_id) {
+      this._paint(`<style>${BASE_CSS}${NEXT_CSS}</style>
+        <ha-card${this._accentStyle()}>
+          <div class="head"><div class="badge"><ha-icon icon="mdi:sofa-outline"></ha-icon></div>
+            <div class="titles"><div class="title">${esc(title)}</div><div class="subtitle">${esc(tn.none)}</div></div></div>
+          <div class="state"><span>${esc(tn.noneHint)}</span></div>
+        </ha-card>`);
+      return;
+    }
+    const limit = Number(c.max_exercises) || 0;
+    const shown = limit > 0 ? list.slice(0, limit) : list;
+    const unit = a.unit || "kg";
+    const names = NAMES[langOf(this._hass)] || NAMES.en;
+    const prog = S[this._ids?.progress];
+    const active = prog && prog.attributes?.active && !Number.isNaN(Number(prog.state));
+    const rest = S[this._ids?.rest];
+    const restEnds = rest && !["unknown", "unavailable", ""].includes(rest.state) ? new Date(rest.state) : null;
+    const restLeft = restEnds ? Math.round((restEnds - Date.now()) / 1000) : 0;
+    const chips = [
+      `${list.length} ${tn.exercises}`,
+      a.total_sets ? `${a.total_sets} ${tn.sets}` : "",
+      a.rest_sec ? `${tn.rest} ${a.rest_sec} s` : "",
+    ].filter(Boolean);
+    this._paint(`
+      <style>${BASE_CSS}${NEXT_CSS}</style>
+      <ha-card${this._accentStyle()}>
+        <div class="head">
+          <div class="badge">${a.emoji ? `<span class="emoji">${esc(a.emoji)}</span>` : `<ha-icon icon="mdi:dumbbell"></ha-icon>`}</div>
+          <div class="titles"><div class="title">${esc(a.name || title)}</div><div class="subtitle">${esc(this._when(a))}</div></div>
+          ${Number(a.days_until) === 0 ? `<span class="nchip today">${esc(t.todayLabel)}</span>` : ""}
+        </div>
+        <div class="chips">${chips.map((x) => `<span class="nchip">${esc(x)}</span>`).join("")}</div>
+        ${active ? `<div class="live-row"><span class="sl">${esc(tn.progress)}</span>
+            <div class="bar"><div class="fill" style="width:${Math.min(100, Number(prog.state))}%"></div></div>
+            <span class="pct">${esc(prog.state)} %</span></div>` : ""}
+        ${c.show_muscles !== false && Array.isArray(a.muscles) && a.muscles.length
+          ? `<div class="mchips">${a.muscles.map((m) => `<span class="mchip">${esc(names[m] || m)}</span>`).join("")}</div>` : ""}
+        <ol class="exlist">${shown.map((ex, i) => `
+          <li><span class="idx">${i + 1}</span><span class="exn">${esc(ex.name || ex.id)}</span>
+              <span class="dose">${esc(this._dose(ex, unit))}</span></li>`).join("")}
+        </ol>
+        ${list.length > shown.length ? `<div class="morex">${esc(tn.more(list.length - shown.length))}</div>` : ""}
+        ${c.show_rest_button !== false ? `<div class="actions">
+            <button class="btn" data-rest data-fk="rest">${restLeft > 0
+              ? `${esc(tn.restStarted)} · ${esc(restEnds.toLocaleTimeString(rawLang(this._hass), { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}`
+              : `${esc(tn.startRest)}${a.rest_sec ? ` (${esc(a.rest_sec)} s)` : ""}`}</button></div>` : ""}
+      </ha-card>`);
+    const btn = this.shadowRoot.querySelector("[data-rest]");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const data = a.entry_id ? { entry_id: a.entry_id } : {};
+        this._hass.callService("opengym", "start_rest_timer", data);
+      });
+    }
+  }
+}
+
+const NEXT_CSS = `
+  .emoji { font-size:22px; line-height:1; }
+  .chips, .mchips { display:flex; flex-wrap:wrap; gap:6px; }
+  .nchip { font-size:12px; font-weight:500; padding:4px 10px; border-radius:999px; background: var(--og-surface-2); color: var(--og-text); white-space:nowrap; }
+  .nchip.today { color: var(--og-accent); background: color-mix(in srgb, var(--og-accent) 18%, transparent); }
+  .mchip { font-size:11px; padding:3px 8px; border-radius:999px; color: var(--og-accent);
+           background: color-mix(in srgb, var(--og-accent) 12%, transparent); }
+  .live-row { display:grid; grid-template-columns: auto 1fr auto; align-items:center; gap:10px; }
+  .live-row .sl { font-size:12px; color: var(--og-muted); }
+  .live-row .pct { font-size:12px; font-weight:500; }
+  .exlist { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+  .exlist li { display:grid; grid-template-columns: 22px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 2px; }
+  .exlist li + li { box-shadow: 0 -1px 0 var(--og-divider); }
+  .idx { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:500;
+         background: var(--og-surface-2); color: var(--og-muted); }
+  .exn { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dose { font-size:13px; color: var(--og-muted); white-space:nowrap; font-variant-numeric: tabular-nums; }
+  .morex { font-size:12px; color: var(--og-muted); padding-left:34px; }
+  .actions { display:flex; justify-content:flex-end; }
+  .btn { border:none; cursor:pointer; padding:8px 14px; border-radius:999px; font-size:13px; font-weight:500;
+         color: var(--og-accent); background: color-mix(in srgb, var(--og-accent) 14%, transparent); transition: background .15s; }
+  .btn:hover { background: color-mix(in srgb, var(--og-accent) 22%, transparent); }
+  @container (max-width: 300px) { .dose { font-size:12px; } .exlist li { gap:6px; } }
+`;
+
+customElements.define(NEXT_TAG, OpenGymNextCard);
+
 // --- Editors -------------------------------------------------------------------
 
 /** ha-form based editor; writes only keys the user actually set (keeps YAML tidy). */
@@ -1237,6 +1448,23 @@ class OpenGymWeekCardEditor extends OpenGymEditorBase {
 }
 customElements.define("opengym-week-card-editor", OpenGymWeekCardEditor);
 
+class OpenGymNextCardEditor extends OpenGymEditorBase {
+  static get defaults() { return NEXT_DEFAULTS; }
+  _schema() {
+    return [
+      { name: "entity", required: true, selector: ENTITY_SELECTOR },
+      { name: "title", selector: { text: {} } },
+      { name: "max_exercises", selector: { number: { min: 0, max: 20, mode: "box" } } },
+      { type: "grid", name: "", schema: [
+        { name: "show_muscles", selector: { boolean: {} } },
+        { name: "show_rest_button", selector: { boolean: {} } },
+      ] },
+      { name: "accent", selector: { text: {} } },
+    ];
+  }
+}
+customElements.define("opengym-next-card-editor", OpenGymNextCardEditor);
+
 window.customCards = window.customCards || [];
 for (const card of [
   {
@@ -1251,6 +1479,13 @@ for (const card of [
     name: "openGym Week Card",
     preview: true,
     description: "Trainingswoche: geplante Routinen und erledigte Workouts nebeneinander, mit Volumen und Wochenfortschritt.",
+    documentationURL: "https://github.com/JImmyB0nes/OpenGym-HomeAssistant",
+  },
+  {
+    type: NEXT_TAG,
+    name: "openGym Next Workout Card",
+    preview: true,
+    description: "Nächstes Training: Routine, Übungen mit Sätzen/Wiederholungen/Gewicht, Live-Fortschritt und Pausentimer-Knopf.",
     documentationURL: "https://github.com/JImmyB0nes/OpenGym-HomeAssistant",
   },
 ]) {

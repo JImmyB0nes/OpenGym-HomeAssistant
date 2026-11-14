@@ -26,8 +26,9 @@ class TestImports(unittest.TestCase):
     """Every module of the integration must import without exceptions."""
 
     MODULES = (
-        "const", "api", "security", "device_info", "coordinator",
+        "const", "logic", "api", "security", "device_info", "coordinator",
         "websocket_api", "sensor", "binary_sensor", "calendar", "update",
+        "button", "repairs",
         "device_trigger", "device_action", "diagnostics", "config_flow",
         "__init__",
     )
@@ -73,18 +74,26 @@ class TestImports(unittest.TestCase):
         const = sys.modules["homeassistant.const"]
         const.Platform = _enum(
             "Platform",
-            "SENSOR", "BINARY_SENSOR", "CALENDAR", "UPDATE",
+            "SENSOR", "BINARY_SENSOR", "CALENDAR", "UPDATE", "BUTTON",
             "DIAGNOSTICS", "DEVICE_TRIGGER", "DEVICE_ACTION",
         )
         const.UnitOfMass = type("UnitOfMass", (), {"KILOGRAMS": "kg", "POUNDS": "lb"})
         const.UnitOfTime = type("UnitOfTime", (), {"DAYS": "d", "SECONDS": "s"})
+        const.PERCENTAGE = "%"
         const.EVENT_HOMEASSISTANT_START = "homeassistant_start"
         const.CONF_URL = "url"; const.CONF_DEVICE_ID = "device_id"
         const.CONF_DOMAIN = "domain"; const.CONF_PLATFORM = "platform"
         const.CONF_TYPE = "type"
 
         _mod("homeassistant.helpers.typing", ["ConfigType", "TemplateVarsType"])
-        _mod("homeassistant.helpers.event", ["async_call_later", "CALLBACK_TYPE"])
+        _mod("homeassistant.helpers.event",
+             ["async_call_later", "CALLBACK_TYPE", "async_track_time_interval"])
+        _mod("homeassistant.helpers.entity_registry", ["async_get"])
+        _mod("homeassistant.exceptions", ["HomeAssistantError", "ServiceValidationError"])
+        _mod("homeassistant.data_entry_flow", ["FlowResult"])
+        sys.modules["homeassistant"].data_entry_flow = sys.modules["homeassistant.data_entry_flow"]
+        _mod("homeassistant.components.button", ["ButtonEntity"])
+        _mod("homeassistant.components.repairs", ["ConfirmRepairFlow", "RepairsFlow"])
         _mod("homeassistant.helpers.job", ["HassJob"])
         _mod("homeassistant.helpers.entity_platform", ["AddEntitiesCallback"])
         _mod("homeassistant.helpers.entity", ["Entity"])
@@ -155,7 +164,8 @@ class TestImports(unittest.TestCase):
 
         sensor = _mod("homeassistant.components.sensor",
                       ["SensorDeviceClass", "SensorEntity", "SensorStateClass"])
-        sensor.SensorDeviceClass = type("SensorDeviceClass", (), {"WEIGHT": "weight"})
+        sensor.SensorDeviceClass = type("SensorDeviceClass", (), {
+            "WEIGHT": "weight", "TIMESTAMP": "timestamp", "ENUM": "enum"})
         sensor.SensorStateClass = type("SensorStateClass", (), {
             "MEASUREMENT": "measurement", "TOTAL": "total",
             "TOTAL_INCREASING": "total_increasing"})

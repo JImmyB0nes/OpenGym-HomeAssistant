@@ -40,7 +40,13 @@
     "step": {
       "init": {
         "data": {
-          "poll_interval": "Poll interval (minutes)"
+          "poll_interval": "Poll interval (minutes)",
+          "rev_interval": "Fast check (seconds, 0 = off)",
+          "max_heart_rate": "Max heart rate (bpm, for HR zones)"
+        },
+        "data_description": {
+          "rev_interval": "Checks openGym's revision (a few bytes) and live data; the full document is only fetched when something changed.",
+          "max_heart_rate": "Zones 1-5 = 50/60/70/80/90 % of this value."
         }
       }
     }
@@ -139,6 +145,72 @@
       },
       "week_history": {
         "name": "Weekly training history"
+      },
+      "weekly_sets_chest": {
+        "name": "Chest weekly sets"
+      },
+      "weekly_sets_upper_back": {
+        "name": "Upper Back weekly sets"
+      },
+      "weekly_sets_lower_back": {
+        "name": "Lower Back weekly sets"
+      },
+      "weekly_sets_trapezius": {
+        "name": "Traps weekly sets"
+      },
+      "weekly_sets_deltoids": {
+        "name": "Shoulders weekly sets"
+      },
+      "weekly_sets_biceps": {
+        "name": "Biceps weekly sets"
+      },
+      "weekly_sets_triceps": {
+        "name": "Triceps weekly sets"
+      },
+      "weekly_sets_forearms": {
+        "name": "Forearms weekly sets"
+      },
+      "weekly_sets_quadriceps": {
+        "name": "Quadriceps weekly sets"
+      },
+      "weekly_sets_hamstring": {
+        "name": "Hamstrings weekly sets"
+      },
+      "weekly_sets_adductors": {
+        "name": "Adductors weekly sets"
+      },
+      "weekly_sets_calves": {
+        "name": "Calves weekly sets"
+      },
+      "weekly_sets_gluteal": {
+        "name": "Glutes weekly sets"
+      },
+      "weekly_sets_abs": {
+        "name": "Core weekly sets"
+      },
+      "live_progress": {
+        "name": "Live workout progress"
+      },
+      "rest_timer": {
+        "name": "Rest timer"
+      },
+      "coach_status": {
+        "name": "Coach",
+        "state": {
+          "idle": "Idle",
+          "queued": "Queued",
+          "running": "Working",
+          "proposal": "Proposal waiting"
+        }
+      },
+      "watch_paired": {
+        "name": "Paired watches"
+      },
+      "watch_heart_rate": {
+        "name": "Watch heart rate"
+      },
+      "watch_hr_zone": {
+        "name": "Heart rate zone"
       }
     },
     "binary_sensor": {
@@ -195,6 +267,12 @@
       },
       "muscle_abs_recovering": {
         "name": "Core recovering"
+      },
+      "day_done": {
+        "name": "Today done"
+      },
+      "nudge_pending": {
+        "name": "Workout reminder due"
       }
     },
     "calendar": {
@@ -209,24 +287,184 @@
       "instance_update": {
         "name": "openGym instance"
       }
+    },
+    "button": {
+      "coach_accept": {
+        "name": "Accept coach proposal"
+      },
+      "coach_reject": {
+        "name": "Reject coach proposal"
+      }
     }
   },
   "services": {
     "log_weighin": {
       "name": "Log weigh-in",
-      "description": "Writes a weigh-in into openGym (scale -> openGym)."
+      "description": "Writes a weigh-in into openGym (scale -> openGym).",
+      "fields": {
+        "weight": {
+          "name": "Weight",
+          "description": "Body weight to log."
+        },
+        "unit": {
+          "name": "Unit",
+          "description": "kg or lb."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Day of the weigh-in. Default: today."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
     },
     "trigger_test_event": {
       "name": "Send test event",
-      "description": "Makes openGym deliver a test webhook event right away."
+      "description": "Makes openGym deliver a test webhook event right away.",
+      "fields": {
+        "event_type": {
+          "name": "Event type",
+          "description": "Which test event openGym delivers."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
     },
     "get_workout_history": {
       "name": "Get workout history",
-      "description": "Returns workouts with summary and set detail for the last N days. Response variable for templates."
+      "description": "Returns workouts with summary and set detail for the last N days. Response variable for templates.",
+      "fields": {
+        "days": {
+          "name": "Days",
+          "description": "How many days back."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
     },
     "get_routines": {
       "name": "Get routines",
-      "description": "Returns the saved routines with their exercises. Response variable for templates."
+      "description": "Returns the saved routines with their exercises. Response variable for templates.",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "start_rest_timer": {
+      "name": "Start rest timer",
+      "description": "openGym pushes a rest-timer notification to your devices that rings when the time is up.",
+      "fields": {
+        "seconds": {
+          "name": "Seconds",
+          "description": "Rest length, 1-3600 s. Default: your rest time from openGym (or 90 s)."
+        },
+        "device_id": {
+          "name": "Device ID",
+          "description": "Only this device (8-64 characters A-Z, a-z, 0-9, _ or -). Default: all of your devices."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "cancel_rest_timer": {
+      "name": "Cancel rest timer",
+      "description": "Cancels the running rest-timer notification.",
+      "fields": {
+        "device_id": {
+          "name": "Device ID",
+          "description": "Only this device (8-64 characters A-Z, a-z, 0-9, _ or -). Default: all of your devices."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "coach_review": {
+      "name": "Ask the coach for a review",
+      "description": "The openGym Coach reviews your plan; the answer arrives as a proposal (Coach sensor, accept/reject buttons). Needs the Coach to be set up on the instance.",
+      "fields": {
+        "note": {
+          "name": "Note",
+          "description": "What the coach should look at (optional)."
+        },
+        "lang": {
+          "name": "Language",
+          "description": "Language of the answer."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "set_rest_day": {
+      "name": "Set rest day",
+      "description": "Marks a day as rest day in the openGym plan (or drops the day's change).",
+      "fields": {
+        "date": {
+          "name": "Date",
+          "description": "Default: today."
+        },
+        "clear": {
+          "name": "Undo change",
+          "description": "Remove the day's override so the weekly plan applies again."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "move_day": {
+      "name": "Move training day",
+      "description": "Moves the session planned on one day to another day; the original day becomes a rest day.",
+      "fields": {
+        "from_date": {
+          "name": "From",
+          "description": "Day the session is planned on."
+        },
+        "to_date": {
+          "name": "To",
+          "description": "Day it moves to."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "add_day_note": {
+      "name": "Add day note",
+      "description": "Notes a day as sick, travelling, rest or injured (plus text). Excuses the day from openGym's reminders. Only today or earlier; empty clears the note.",
+      "fields": {
+        "date": {
+          "name": "Date",
+          "description": "Default: today."
+        },
+        "tag": {
+          "name": "Tag",
+          "description": "sick, travel, rest or injured."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Up to 500 characters."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
     }
   },
   "device_automation": {
@@ -243,6 +481,64 @@
     "connection_error": {
       "title": "openGym not reachable",
       "description": "The openGym instance could not be polled.\n\nLast error: {error}\n\nThis clears itself as soon as the next poll succeeds."
+    },
+    "webhook_delivery_failed": {
+      "title": "openGym can't deliver to Home Assistant",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Retry failed deliveries",
+            "description": "openGym's webhook connection \"{label}\" has {failed} failed deliveries.\n\nLast error: {error}\n\nCheck that Home Assistant's URL is reachable from openGym, then confirm to queue the failed deliveries again."
+          }
+        },
+        "error": {
+          "retry_failed": "openGym could not queue the deliveries again."
+        },
+        "abort": {
+          "not_loaded": "The openGym entry is not loaded."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_entry": {
+      "message": "Unknown openGym config entry: {entry_id}"
+    },
+    "no_entry": {
+      "message": "No openGym config entry found."
+    },
+    "entry_not_loaded": {
+      "message": "The openGym entry is not loaded."
+    },
+    "write_failed": {
+      "message": "openGym rejected the change: {error}"
+    },
+    "write_conflict": {
+      "message": "openGym kept changing while writing (revision conflict). Please try again."
+    },
+    "plan_same_day": {
+      "message": "Source and target day are the same."
+    },
+    "plan_nothing_planned": {
+      "message": "No session is planned on {date}."
+    },
+    "plan_note_future": {
+      "message": "Day notes are only possible for today or earlier."
+    },
+    "plan_note_tag": {
+      "message": "Unknown tag: {tag}"
+    },
+    "coach_off": {
+      "message": "The Coach is not set up on this openGym instance."
+    },
+    "coach_failed": {
+      "message": "Coach request failed: {error}"
+    },
+    "coach_nothing_pending": {
+      "message": "No coach proposal is waiting."
+    },
+    "coach_use_app": {
+      "message": "This proposal changes the plan's structure; accept it in the openGym app."
     }
   }
 }

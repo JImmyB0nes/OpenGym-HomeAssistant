@@ -57,3 +57,97 @@ get_routines:
       selector:
         text:
 
+
+start_rest_timer:
+  fields:
+    seconds:
+      example: 90
+      selector:
+        number:
+          min: 1
+          max: 3600
+          step: 5
+          mode: box
+          unit_of_measurement: s
+    device_id:
+      selector:
+        text:
+    entry_id:
+      selector:
+        text:
+
+cancel_rest_timer:
+  fields:
+    device_id:
+      selector:
+        text:
+    entry_id:
+      selector:
+        text:
+
+coach_review:
+  fields:
+    note:
+      example: "Knie zwickt, weniger Kniebeugen"
+      selector:
+        text:
+          multiline: true
+    lang:
+      selector:
+        select:
+          options:
+            - de
+            - en
+          mode: dropdown
+    entry_id:
+      selector:
+        text:
+
+set_rest_day:
+  fields:
+    date:
+      selector:
+        date:
+    clear:
+      default: false
+      selector:
+        boolean:
+    entry_id:
+      selector:
+        text:
+
+move_day:
+  fields:
+    from_date:
+      required: true
+      selector:
+        date:
+    to_date:
+      required: true
+      selector:
+        date:
+    entry_id:
+      selector:
+        text:
+
+add_day_note:
+  fields:
+    date:
+      selector:
+        date:
+    tag:
+      selector:
+        select:
+          options:
+            - sick
+            - travel
+            - rest
+            - injured
+          mode: dropdown
+    text:
+      selector:
+        text:
+          multiline: true
+    entry_id:
+      selector:
+        text:

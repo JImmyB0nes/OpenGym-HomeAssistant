@@ -44,6 +44,7 @@ def install() -> None:
     uc.DataUpdateCoordinator = _DataUpdateCoordinator
     _module("homeassistant.helpers")
     _module("homeassistant.helpers.issue_registry", ["IssueRegistry"])
+    _module("homeassistant.helpers.event", ["async_track_time_interval"])
     _module("homeassistant.components", ["websocket_api", "webhook"])
     _module("homeassistant.config_entries", ["ConfigEntry", "ConfigFlow", "OptionsFlow", "ConfigFlowResult"])
     _module("homeassistant.const", ["CONF_URL", "Platform", "UnitOfMass", "UnitOfTime", "EVENT_HOMEASSISTANT_START"])
@@ -76,5 +77,6 @@ def setup():
     pkg.__path__ = [str(COMPONENT)]
     sys.modules["opengym"] = pkg
     load("const")
+    load("logic")
     load("api")
     return load("coordinator")
