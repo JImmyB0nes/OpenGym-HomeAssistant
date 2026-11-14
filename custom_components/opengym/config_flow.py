@@ -10,10 +10,17 @@ import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
-    ConfigFlowResult,
     OptionsFlow,
 )
 from homeassistant.const import CONF_URL
+
+# ConfigFlowResult exists only since HA 2024.4; fall back to the generic
+# FlowResult on older installs so importing this module never fails
+# ("Invalid handler specified").
+try:  # HA >= 2024.4
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:  # HA < 2024.4
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
     NumberSelector,
@@ -45,6 +52,18 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
         self._url: str = ""
         self._token: str | None = None
 
+    def _reauth_entry(self) -> ConfigEntry:
+        """Return the entry being reauthenticated.
+
+        ``_get_reauth_entry()`` exists only since HA 2024.11; on older
+        versions the entry is resolved from the flow context instead.
+        """
+        if hasattr(self, "_get_reauth_entry"):
+            return self._get_reauth_entry()  # type: ignore[no-any-return]
+        return self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+
     @staticmethod
     def async_get_options_flow(
         config_entry: ConfigEntry,
@@ -71,9 +90,10 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
                     data_schema=vol.Schema({vol.Required("code"): cv.string}),
                     errors={"base": "invalid_code"},
                 )
+            entry = self._reauth_entry()
             return self.async_update_reload_and_abort(
-                self._get_reauth_entry(),
-                data={**self._get_reauth_entry().data, CONF_TOKEN: token},
+                entry,
+                data={**entry.data, CONF_TOKEN: token},
             )
         return self.async_show_form(
             step_id="reauth_confirm",

@@ -128,6 +128,12 @@
       },
       "muscle_abs": {
         "name": "Core idle days"
+      },
+      "muscle_fatigue": {
+        "name": "Muscle fatigue"
+      },
+      "week_history": {
+        "name": "Weekly training history"
       }
     },
     "binary_sensor": {

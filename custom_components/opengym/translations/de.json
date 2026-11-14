@@ -132,6 +132,12 @@
       },
       "muscle_balance": {
         "name": "Muskelbalance"
+      },
+      "muscle_fatigue": {
+        "name": "Muskelmüdigkeit"
+      },
+      "week_history": {
+        "name": "Wöchentliche Trainingshistorie"
       }
     },
     "binary_sensor": {

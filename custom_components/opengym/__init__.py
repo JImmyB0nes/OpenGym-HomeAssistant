@@ -44,6 +44,7 @@ from .const import (
 from .coordinator import OpenGymDataCoordinator
 from .frontend import async_schedule_frontend
 from .security import verify_signature
+from .websocket_api import async_setup_ws
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,7 +70,12 @@ PLATFORMS: list[Platform] = [
     Platform.UPDATE,
 ]
 
-type OpenGymConfigEntry = ConfigEntry[OpenGymRuntime]
+# ``ConfigEntry[...]`` as a subscripted generic requires HA >= 2024.6
+# (ConfigEntry became Generic there). Keep the parameterized alias for
+# type checkers only, so importing this module never fails on older cores.
+OpenGymConfigEntry = ConfigEntry
+if TYPE_CHECKING:
+    OpenGymConfigEntry = ConfigEntry["OpenGymRuntime"]  # type: ignore[misc]
 
 
 class OpenGymRuntime:
@@ -311,6 +317,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             supports_response=SupportsResponse.ONLY,
         )
         hass.data.setdefault("_opengym_services", set()).add(DOMAIN)
+
+    # WebSocket commands for the bundled card (detail panels, version check).
+    async_setup_ws(hass)
 
     # Serve and register the bundled muscle card (once per HA start).
     if hass.state == CoreState.running:
