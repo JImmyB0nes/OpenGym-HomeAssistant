@@ -64,6 +64,8 @@ def _entry_for_call(hass: HomeAssistant, call: ServiceCall):
     return entries[0]
 
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
