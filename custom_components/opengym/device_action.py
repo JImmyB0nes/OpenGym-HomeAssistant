@@ -10,20 +10,19 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components.device_automation import DeviceAutomationType
-from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
+from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_TYPE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.typing import ConfigType, TemplateVarsType
 
 from .const import DOMAIN, SERVICE_LOG_WEIGHIN
 
-ACTION_SCHEMA = vol.Schema(
+ACTION_SCHEMA = cv.DEVICE_ACTION_BASE_SCHEMA.extend(
     {
-        vol.Required(CONF_PLATFORM): DeviceAutomationType.ACTION,
-        vol.Required(CONF_DOMAIN): DOMAIN,
-        vol.Required(CONF_DEVICE_ID): str,
         vol.Required(CONF_TYPE): vol.In([SERVICE_LOG_WEIGHIN]),
+        vol.Required("weight"): vol.Coerce(float),
+        vol.Optional("unit", default="kg"): vol.In(["kg", "lb"]),
+        vol.Optional("date"): cv.date,
     }
 )
 
@@ -47,7 +46,6 @@ async def async_get_actions(
         return []
     return [
         {
-            CONF_PLATFORM: DeviceAutomationType.ACTION,
             CONF_DOMAIN: DOMAIN,
             CONF_DEVICE_ID: device_id,
             CONF_TYPE: SERVICE_LOG_WEIGHIN,
@@ -84,8 +82,9 @@ async def async_call_action_from_config(
         {
             "weight": config["weight"],
             "unit": config.get("unit", "kg"),
-            "date": config.get("date"),
             "entry_id": entry.entry_id,
+            # the service schema rejects date=None; only pass a real date
+            **({"date": config["date"]} if config.get("date") else {}),
         },
         blocking=True,
         context=context,

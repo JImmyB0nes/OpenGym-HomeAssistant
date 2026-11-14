@@ -49,6 +49,7 @@ def install() -> None:
     _module("homeassistant.const", ["CONF_URL", "Platform", "UnitOfMass", "UnitOfTime", "EVENT_HOMEASSISTANT_START"])
     _module("homeassistant.helpers.config_validation")
     _module("homeassistant.helpers.typing")
+    _module("homeassistant.helpers.network", ["NoURLAvailableError"])
     _module("homeassistant.util")
     _module("homeassistant.util.dt")
     _module("aiohttp")

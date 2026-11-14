@@ -38,7 +38,11 @@ class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntit
     _attr_name = "openGym Instanz"
     _attr_title = "openGym"
     _attr_supported_features = UpdateEntityFeature.RELEASE_NOTES
-    _attr_should_poll = True
+
+    @property
+    def should_poll(self) -> bool:
+        """Poll (update platform: every 15 min) — CoordinatorEntity says False."""
+        return True
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)

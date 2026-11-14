@@ -10,17 +10,14 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components.device_automation import (
-    DeviceAutomationType,
-    TriggerDeviceAutomationSchema,
-)
+from homeassistant.components.device_automation import DEVICE_TRIGGER_BASE_SCHEMA
 from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
 from homeassistant.core import CALLBACK_TYPE, HassJob, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, EVENT_TYPES
+from .const import DOMAIN
 
 # trigger type -> HA event name
 TRIGGER_TYPES: dict[str, str] = {
@@ -29,7 +26,7 @@ TRIGGER_TYPES: dict[str, str] = {
     "weighin_logged": "opengym_weighin_logged",
 }
 
-TRIGGER_SCHEMA = TriggerDeviceAutomationSchema.extend(
+TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
     {
         vol.Required(CONF_TYPE): vol.In(list(TRIGGER_TYPES)),
         vol.Optional("test"): cv.boolean,
@@ -58,7 +55,7 @@ async def async_get_triggers(
         return []
     return [
         {
-            CONF_PLATFORM: DeviceAutomationType.TRIGGER,
+            CONF_PLATFORM: "device",
             CONF_DOMAIN: DOMAIN,
             CONF_DEVICE_ID: device_id,
             CONF_TYPE: trigger_type,

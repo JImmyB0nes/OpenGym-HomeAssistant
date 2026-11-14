@@ -28,7 +28,8 @@
     },
     "error": {
       "cannot_connect": "openGym ist unter dieser URL nicht erreichbar.",
-      "invalid_code": "Code falsch oder abgelaufen (5 Minuten gültig)."
+      "invalid_code": "Code falsch oder abgelaufen (5 Minuten gültig).",
+      "unknown": "Unerwarteter Fehler, siehe Home-Assistant-Protokoll."
     },
     "abort": {
       "already_configured": "Diese Instanz ist bereits eingerichtet.",
@@ -236,6 +237,12 @@
     },
     "action_type": {
       "log_weighin": "Wiegewägung protokollieren"
+    }
+  },
+  "issues": {
+    "connection_error": {
+      "title": "openGym nicht erreichbar",
+      "description": "Die openGym-Instanz konnte nicht abgefragt werden.\n\nLetzter Fehler: {error}\n\nDas wird automatisch behoben, sobald der nächste Abruf erfolgreich ist."
     }
   }
 }
