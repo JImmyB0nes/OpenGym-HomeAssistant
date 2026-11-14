@@ -4,8 +4,8 @@
 proposal is the client's job (openapi: coachResolve). Home Assistant applies
 the scalar changes itself (sets, reps, rep range, seconds, increment, routine
 name) with a conditional PUT; proposals with structural changes or a whole
-new plan (`bundle`) must be accepted in the app, so "Accept" is unavailable
-for them. Both buttons only exist when the instance runs the Coach.
+new plan (`bundle`) must be accepted in the app; pressing "Accept" then
+says so. Without a waiting proposal a press reports "nothing pending". Both buttons only exist when the instance runs the Coach.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from . import logic
 from .api import OpenGymError
 from .const import DOMAIN
 from .coordinator import OpenGymDataCoordinator
-from .device_info import open_gym_device_info
+from .device_info import open_gym_device_info, prune_entities
 
 
 async def async_setup_entry(
@@ -33,6 +33,8 @@ async def async_setup_entry(
 ) -> None:
     coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
     if not coordinator.coach_enabled:
+        if coordinator.coach_enabled is False:
+            prune_entities(hass, entry, "button", ("coach_accept", "coach_reject"))
         return  # Coach off on this instance: no buttons, no errors
     async_add_entities([
         CoachAcceptButton(coordinator, entry),
@@ -60,7 +62,6 @@ class _CoachButton(CoordinatorEntity[OpenGymDataCoordinator], ButtonEntity):
         return (
             self.coordinator.last_update_success
             and bool(self.coordinator.coach_enabled)
-            and self._pending is not None
         )
 
     def _require_pending(self) -> dict[str, Any]:
@@ -86,10 +87,6 @@ class CoachAcceptButton(_CoachButton):
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry, "coach_accept", "Accept coach proposal")
-
-    @property
-    def available(self) -> bool:
-        return super().available and logic.coach_accept_mode(self._pending) is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

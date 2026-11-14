@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import logic
 from .const import MUSCLES, RECOVERY_DAYS
-from .device_info import open_gym_device_info
+from .device_info import open_gym_device_info, prune_entities
 from .coordinator import OpenGymDataCoordinator
 
 
@@ -25,12 +25,17 @@ async def async_setup_entry(
     coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
     entities: list[BinarySensorEntity] = [
         RestDaySensor(coordinator, entry),
-        ActiveWorkoutSensor(coordinator, entry),
         WorkedOutTodaySensor(coordinator, entry),
         WorkedOutThisWeekSensor(coordinator, entry),
         DayDoneSensor(coordinator, entry),
         NudgePendingSensor(coordinator, entry),
     ]
+    # openGym only shares presence with admins: without admin rights the
+    # sensor could never be anything but unavailable, so it is not created.
+    if coordinator.is_admin:
+        entities.append(ActiveWorkoutSensor(coordinator, entry))
+    elif coordinator.is_admin is False:
+        prune_entities(hass, entry, "binary_sensor", ("active_workout",))
     entities += [
         MuscleRecoverySensor(coordinator, entry, muscle, label)
         for muscle, label in MUSCLES.items()
@@ -67,7 +72,7 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
     """On while a workout is running right now (live presence).
 
     openGym only exposes live presence through the admin endpoint; without
-    admin rights the sensor stays unavailable.
+    admin rights the sensor is not created.
     """
 
     _attr_has_entity_name = True
@@ -82,7 +87,7 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
 
     @property
     def available(self) -> bool:
-        return self.coordinator.is_admin is True and self.coordinator.last_update_success
+        return self.coordinator.last_update_success
 
     @property
     def is_on(self) -> bool | None:
@@ -220,8 +225,7 @@ class _NudgeBase(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
     def available(self) -> bool:
         return (
             self.coordinator.last_update_success
-            and self.coordinator.nudge_supported
-            and self.coordinator.nudge is not None
+            and bool(self.coordinator.nudge_supported)
         )
 
     @property

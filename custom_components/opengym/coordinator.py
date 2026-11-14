@@ -6,6 +6,7 @@ the weekly plan and muscle coverage to the platforms.
 
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 from datetime import date, datetime, time, timedelta
@@ -46,16 +47,28 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def _load_muscle_map() -> dict[str, dict[str, Any]]:
+def _load_exercise_db() -> dict[str, dict[str, Any]]:
+    """openGym's exercise catalogue: id -> {n, de, bp, muscleWeights}.
+
+    Generated from openGym's catalogue by scripts/build_exercise_db.mjs. Drawing
+    ids (EXALIAS) resolve to the exercise they show, like the app does.
+    """
     try:
-        raw = (Path(__file__).parent / "muscle_map.json").read_text()
-        return json.loads(raw)
-    except (FileNotFoundError, ValueError) as err:  # pragma: no cover
-        _LOGGER.warning("openGym: muscle map unavailable (%s)", err)
+        with gzip.open(Path(__file__).parent / "exercises.json.gz", "rt", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, ValueError) as err:  # pragma: no cover
+        _LOGGER.warning("openGym: exercise catalogue unavailable (%s)", err)
         return {}
+    out: dict[str, dict[str, Any]] = {}
+    for ex_id, (name, name_de, bp, weights) in (raw.get("ex") or {}).items():
+        out[ex_id] = {"n": name, "de": name_de, "bp": bp, "muscleWeights": weights}
+    for alias, target in (raw.get("alias") or {}).items():
+        if target in out and alias not in out:
+            out[alias] = out[target]
+    return out
 
 
-_MUSCLE_MAP = _load_muscle_map()
+_MUSCLE_MAP = _load_exercise_db()
 
 
 def _day(value: str | None) -> date | None:
@@ -87,6 +100,8 @@ class OpenGymState:
             int(k): v for k, v in (self.raw.get("week") or {}).items()
         }
         self.day_plan: dict[str, str] = self.raw.get("dayPlan") or {}
+        # Home Assistant's language, for exercise names (set by the coordinator).
+        self.lang: str = "en"
 
     # --- workouts ---------------------------------------------------------
 
@@ -202,15 +217,51 @@ class OpenGymState:
                 return float(value)
         return None
 
-    def exercise_name(self, ex_id: Any) -> str:
-        """Display name: custom exercise first, then the bundled catalogue."""
-        key = str(ex_id)
+    def _custom(self, key: str) -> dict[str, Any] | None:
         for ex in self.raw.get("customEx") or []:
-            if isinstance(ex, dict) and str(ex.get("id")) == key and ex.get("n"):
-                return str(ex["n"])
-        info = _MUSCLE_MAP.get(key) or {}
-        name = info.get("n")
-        return str(name).capitalize() if name else key
+            if isinstance(ex, dict) and str(ex.get("id")) == key:
+                return ex
+        return None
+
+    def _info(self, ex_id: Any, entry: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Muscle info for an exercise: catalogue, then custom exercise, then a
+        snapshot the history entry carries (deleted custom exercises)."""
+        key = str(ex_id)
+        if (info := _MUSCLE_MAP.get(key)) is not None:
+            return info
+        sources = [self._custom(key)]
+        if isinstance(entry, dict):
+            sources += [entry.get("exercise"), entry.get("muscleSnapshot"), entry]
+        for src in sources:
+            if isinstance(src, dict) and (weights := logic.custom_muscle_weights(src)):
+                return {"n": src.get("n"), "muscleWeights": weights}
+        return None
+
+    def exercise_name(self, ex_id: Any, lang: str = "en", entry: dict[str, Any] | None = None) -> str:
+        """Display name as openGym shows it: custom name, else the catalogue
+        title in the language (German pack where it has one, else English)."""
+        key = str(ex_id)
+        custom = self._custom(key)
+        if custom and custom.get("n"):
+            return str(custom["n"])
+        info = _MUSCLE_MAP.get(key)
+        if info:
+            if lang.lower().startswith("de") and info.get("de"):
+                return str(info["de"])
+            return str(info["n"])
+        for src in (entry or {}, (entry or {}).get("exercise") or {}):
+            if isinstance(src, dict) and src.get("n"):
+                return logic.cap_words(str(src["n"]))
+        return f"#{key}" if key and key != "None" else "?"
+
+    def exercise_names(self, ex_id: Any, entry: dict[str, Any] | None = None) -> dict[str, str]:
+        return {"en": self.exercise_name(ex_id, "en", entry), "de": self.exercise_name(ex_id, "de", entry)}
+
+    def week_streak(self, today: date) -> dict[str, Any]:
+        """openGym's week streak (weeks in a row with a workout, freezes)."""
+        sunday_first = (self.raw.get("weekStart") or (self.raw.get("settings") or {}).get("weekStart")) == 0
+        days = [d for w in self.workouts if (d := _day(w.get("d")))]
+        return logic.week_streak(days, today, 6 if sunday_first else 0)
 
     def next_workout(self, today: date) -> dict[str, Any] | None:
         """The next planned session with its exercises, for the next-workout card."""
@@ -228,7 +279,8 @@ class OpenGymState:
             last = memory.get(ex_id) if isinstance(memory, dict) else None
             exercises.append({
                 "id": ex_id,
-                "name": self.exercise_name(ex_id),
+                "name": self.exercise_name(ex_id, self.lang),
+                "names": self.exercise_names(ex_id),
                 "sets": ex.get("sets"),
                 "reps": ex.get("reps"),
                 "reps_min": ex.get("repsMin"),
@@ -238,14 +290,17 @@ class OpenGymState:
                 "mode": ex.get("mode") or "reps",
                 "weight": ex.get("weight") or ((last or {}).get("w") if isinstance(last, dict) else None),
             })
-            info = _MUSCLE_MAP.get(ex_id)
+            info = self._info(ex_id)
             if info:
-                for m in info.get("primaries") or []:
-                    muscles[m] = muscles.get(m, 0) + float(ex.get("sets") or 0)
+                for m, w in self._entry_muscles(info).items():
+                    if w >= 1.0:
+                        muscles[m] = muscles.get(m, 0) + float(ex.get("sets") or 0)
         return {
             "routine_id": routine.get("id"),
             "name": routine.get("name") or "Workout",
             "emoji": routine.get("emoji"),
+            "glyph": logic.routine_glyph(routine.get("emoji")),
+            "icon": logic.routine_icon(routine.get("emoji")),
             "date": day.isoformat(),
             "days_until": (day - today).days,
             "exercises": exercises,
@@ -320,7 +375,7 @@ class OpenGymState:
         load: dict[str, float] = {}
         for workout in self.workouts_between(monday, end):
             for entry in workout.get("entries") or []:
-                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                info = self._info(entry.get("id"), entry)
                 if not info:
                     continue
                 sets = self._working_sets(entry.get("sets"))
@@ -338,7 +393,7 @@ class OpenGymState:
             if not day:
                 continue
             for entry in workout.get("entries") or []:
-                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                info = self._info(entry.get("id"), entry)
                 if not info:
                     continue
                 for muscle in self._entry_muscles(info):
@@ -366,7 +421,7 @@ class OpenGymState:
         best: dict[str, float] = {}
         for workout in self.workouts:
             for entry in workout.get("entries") or []:
-                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                info = self._info(entry.get("id"), entry)
                 if not info:
                     continue
                 for s in entry.get("sets") or []:
@@ -388,7 +443,7 @@ class OpenGymState:
             if not day:
                 continue
             for entry in workout.get("entries") or []:
-                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                info = self._info(entry.get("id"), entry)
                 if not info:
                     continue
                 for muscle in self._entry_muscles(info):
@@ -416,7 +471,7 @@ class OpenGymState:
             if not day:
                 continue
             for entry in workout.get("entries") or []:
-                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                info = self._info(entry.get("id"), entry)
                 if not info:
                     continue
                 sets = self._working_sets(entry.get("sets"))
@@ -465,7 +520,7 @@ class OpenGymState:
         routine, _day = nxt
         load: dict[str, float] = {}
         for ex in routine.get("ex") or []:
-            info = _MUSCLE_MAP.get(str(ex.get("id")))
+            info = self._info(ex.get("id"), ex)
             if not info:
                 continue
             sets = float(ex.get("sets") or 0)
@@ -502,6 +557,7 @@ class OpenGymState:
                     "date": day.isoformat(),
                     "planned": routine.get("name") if routine else None,
                     "emoji": routine.get("emoji") if routine else None,
+                    "icon": logic.routine_icon(routine.get("emoji")) if routine else None,
                     "done": entry,
                 }
             )
@@ -519,6 +575,7 @@ class OpenGymState:
                     "weekday": day.isoweekday(),
                     "name": routine.get("name") if routine else None,
                     "emoji": routine.get("emoji") if routine else None,
+                    "icon": logic.routine_icon(routine.get("emoji")) if routine else None,
                     "exercises": len(routine.get("ex") or []) if routine else 0,
                 }
             )
@@ -554,7 +611,7 @@ class OpenGymState:
             window_best: dict[str, float] = {}
             for workout in self.workouts_between(monday, end):
                 for entry in workout.get("entries") or []:
-                    info = _MUSCLE_MAP.get(str(entry.get("id")))
+                    info = self._info(entry.get("id"), entry)
                     if not info:
                         continue
                     for s in entry.get("sets") or []:
@@ -580,7 +637,7 @@ class OpenGymState:
         best = 0.0
         for workout in self.workouts:
             for entry in workout.get("entries") or []:
-                info = _MUSCLE_MAP.get(str(entry.get("id")))
+                info = self._info(entry.get("id"), entry)
                 if not info:
                     continue
                 weight = self._entry_muscles(info).get(muscle, 0)
@@ -588,7 +645,7 @@ class OpenGymState:
                     continue
                 sets = self._working_sets(entry.get("sets"))
                 if sets:
-                    key = str(info.get("n") or entry.get("id"))
+                    key = self.exercise_name(entry.get("id"), self.lang, entry)
                     exercises[key] = exercises.get(key, 0) + weight * sets
                 for s in entry.get("sets") or []:
                     w, r = s.get("w"), s.get("r")
@@ -704,6 +761,7 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         self.rev = rev
         await self._async_update_presence()
         snapshot = OpenGymState(state)
+        snapshot.lang = getattr(self.hass.config, "language", None) or "en"
         snapshot._rev = rev  # noqa: SLF001  (needed for conditional writes)
         await self._async_update_extras()
         return snapshot

@@ -27,7 +27,7 @@ Sie funktioniert zweigleisig:
 - 🧬 **Muskel-Karte im Dashboard** — gebündelte Lovelace-Card mit echter openGym-Körperkarte, Wochen-Sets gegen Zielbereiche, Erholung und Kraft
 - ✅ **"Heute / diese Woche trainiert"** — die meistgenutzten Trigger für Automationen
 - 📆 **Workout-Verlauf** — abgeschlossene Workouts als Kalender-Events für die native Calendar-Card
-- 💪 **28 Muskel-Sensoren** — Idle-Tage und Erholungsstatus für 14 Muskelgruppen, aus openGyms echter Muskelkarte (246 Übungen)
+- 💪 **28 Muskel-Sensoren** — Idle-Tage und Erholungsstatus für 14 Muskelgruppen, aus openGyms echtem Übungskatalog (über 5.600 Übungen)
 - 🟢 **Live-Training** — `binary_sensor.opengym_active_workout` zeigt, ob gerade wirklich gehoben wird
 - 📅 **Kalender** — der Wochentagsplan als Entität, die jeder Karten- und Kalender-Card versteht
 - 🔔 **Device-Trigger & -Actions** — Automationen ohne YAML: *„Wenn das openGym-Gerät ein Workout abschließt …“*
@@ -43,55 +43,195 @@ Sie funktioniert zweigleisig:
 - ⌚ **Uhr** *(0.10)* — Herzfrequenz und HF-Zone von der gekoppelten Uhr
 - 📈 **Langzeitstatistik** *(0.10)* — Wochen-Sätze je Muskel als Statistik-Sensoren für Verlaufsgraphen
 
-## Installation
+## Installation & Einrichtung
 
-### Voraussetzungen
+Die Einrichtung dauert etwa zehn Minuten und hat vier Teile: openGym vorbereiten, die Adressen klären, die Integration installieren und koppeln, die Karten einbinden. Die Beispiele verwenden durchgehend diese Werte, ersetze sie durch deine eigenen:
 
-- **Home Assistant ≥ 2024.7** — die Integration nutzt APIs, die früher nicht
-  verfügbar sind (`ConfigFlowResult` seit 2024.4, `ConfigEntry`-Generics seit
-  2024.6, `StaticPathConfig` für die Dashboard-Karte seit 2024.7). Ältere
-  Installationen erkennen die Integration nicht oder melden beim Hinzufügen
-  *„Invalid handler specified“*.
+| Was | Beispiel |
+|---|---|
+| openGym im Heimnetz | `http://192.168.123.14:8080` |
+| openGym öffentlich (Reverse Proxy/Tunnel) | `https://gym.example.de` |
+| Home Assistant im Heimnetz | `http://192.168.123.20:8123` |
+| Home Assistant öffentlich (optional) | `https://ha.example.de` |
 
-### HACS *(empfohlen)*
+### 1. Voraussetzungen
+
+- Eine **selbst gehostete openGym-Instanz** ([DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym), Docker Compose). Die reine Handy-App ohne Server reicht nicht, denn Home Assistant braucht die API des Servers.
+- Ein **openGym-Konto** auf dieser Instanz, mit dem du dich im Browser anmelden kannst (Passkey oder Passwort). Für Live-Fortschritt und „Training läuft“ muss es ein **Admin**-Konto sein, denn openGym teilt Live-Präsenz nur mit Admins.
+- **Home Assistant 2024.11 oder neuer.**
+- **[HACS](https://hacs.xyz/)** (empfohlen) oder Zugriff auf den Ordner `config/custom_components`.
+
+### 2. openGym vorbereiten (Server)
+
+Ohne diesen Schritt funktioniert die Integration auch, allerdings nur per **Polling** (Standard alle 15 Minuten, dazu eine schnelle Revisionsprüfung alle 30 s). Mit Webhooks meldet openGym abgeschlossene Workouts, Rekorde und Wiegungen **sofort**.
+
+**2.1 Webhooks einschalten.** Integrationen sind in openGym standardmäßig aus. Ohne Einstellung blendet openGym die Webhook-Karte für alle außer Admins aus und legt keine Webhooks an. Trage in die `.env` neben der `docker-compose.yml` ein:
+
+```ini
+INTEGRATIONS=webhook
+```
+
+**2.2 Webhooks ins Heimnetz erlauben (`INTEGRATIONS_ALLOW_LAN`).** openGym behandelt eine Webhook-URL wie einen Push-Endpunkt: nur `https://` und nie eine private Adresse. Die Adresse wird beim Verbindungsaufbau geprüft, also auch dann, wenn ein Hostname auf eine private IP auflöst. Läuft Home Assistant unter `http://192.168.123.20:8123`, verwirft openGym jede Zustellung, bis du das freigibst:
+
+```ini
+INTEGRATIONS_ALLOW_LAN=1
+```
+
+Was der Schalter freigibt (`api/net-guard.js`):
+
+- die Heimnetz-Bereiche `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10` (Tailscale & Co.) und IPv6 `fc00::/7`
+- **unverschlüsseltes `http://`, aber nur zu diesen Adressen**
+
+Was gesperrt bleibt, egal was eingestellt ist:
+
+- Loopback (`127.0.0.1`, also der openGym-Server selbst)
+- Link-Local (`169.254.x.x`)
+- Multicast und reservierte Bereiche
+- `http://` zu einer Internet-Adresse
+
+Gültige Werte sind `1`, `true`, `yes` oder `on`. Beachte: Danach kann jeder angemeldete Nutzer deiner Instanz den Server Anfragen in dein Heimnetz schicken lassen. Schalte es also nur auf einer Instanz ein, deren Nutzern du vertraust.
+
+**Weitere Variablen, die hier eine Rolle spielen:**
+
+| Variable | Wofür |
+|---|---|
+| `ALLOWED_PRIVATE_IPS` | Einzelne private Adressen, Bereiche (`a-b`) oder CIDR-Blöcke, die zusätzlich erlaubt sind, z. B. `192.168.123.20` oder `10.0.0.0/8`. Gilt für Push und Webhooks. Das ist der Weg, wenn du *nur* Home Assistant freigeben willst; mit `INTEGRATIONS_ALLOW_LAN=1` ist das ganze Heimnetz offen. |
+| `ORIGIN` / `RP_ID` | Die Adresse, unter der du openGym im Browser öffnest (Passkeys). Home Assistant meldet sich mit einem Bearer-Token an und ist davon nicht betroffen. Den Kopplungscode musst du aber im Browser unter dieser Adresse erzeugen. |
+| `WEB_PORT` | Host-Port des `web`-Containers (Standard `8080`), also der Port in der LAN-URL. |
+
+**Wohin damit?** Die `docker-compose.yml` von openGym lädt die `.env` mit `env_file: .env` in den `api`-Container. Die `.env` ist deshalb der einfachste Weg:
+
+```ini
+# .env (neben docker-compose.yml)
+INTEGRATIONS=webhook
+INTEGRATIONS_ALLOW_LAN=1
+```
+
+Alternativ direkt am `api`-Dienst in der `docker-compose.yml`:
+
+```yaml
+services:
+  api:
+    environment:
+      - INTEGRATIONS=webhook
+      - INTEGRATIONS_ALLOW_LAN=1
+```
+
+**Übernehmen.** Ein einfacher `docker compose restart` liest geänderte Umgebungsvariablen **nicht** neu ein. Der Container muss neu erstellt werden:
+
+```bash
+docker compose up -d
+```
+
+Compose erkennt die geänderte Konfiguration und erstellt den `api`-Container neu. Wenn er sich nicht neu erstellt: `docker compose up -d --force-recreate api`.
+
+**Prüfen, ob es wirkt:**
+
+```bash
+docker compose exec api printenv INTEGRATIONS INTEGRATIONS_ALLOW_LAN
+# erwartet:
+# webhook
+# 1
+```
+
+In der openGym-Web-App erscheint unter **Einstellungen → Integrationen** jetzt die Karte **Webhooks** mit **Verbinden**. Ein Tippfehler in `INTEGRATIONS` steht als Warnung im Log (`docker compose logs api`).
+
+### 3. Welche openGym-URL Home Assistant benutzt
+
+Diese URL trägst du später im Einrichtungsdialog ein. Home Assistant liest darüber den Datenstand und schreibt Planänderungen zurück.
+
+| | LAN-URL `http://192.168.123.14:8080` | Öffentliche URL `https://gym.example.de` |
+|---|---|---|
+| **Vorteile** | kein Proxy nötig, schnell, funktioniert ohne Internet | verschlüsselt, funktioniert auch, wenn HA woanders steht |
+| **Nachteile** | unverschlüsselt im LAN; feste IP bzw. DHCP-Reservierung nötig | hängt an Proxy/Tunnel und DNS; Cloudflare Access o. Ä. davor blockiert HA |
+| **Wann** | HA und openGym im selben Netz (Normalfall) | HA außerhalb oder openGym nur per Proxy erreichbar |
+
+Hinweise:
+
+- Gemeint ist der **`web`-Container** (Port `WEB_PORT`, Standard `8080`), nicht der `api`-Port `3000`. Der API-Port ist in der Standard-Compose-Datei nicht veröffentlicht.
+- Ohne abschließenden `/`. Bei einer Installation unter einem Unterpfad (`BASE_PATH=/gym`) gehört der Pfad dazu: `https://example.de/gym`.
+- Schnelltest von einem Rechner im LAN: `curl http://192.168.123.14:8080/api/config` muss JSON mit `invite_only` liefern. Eine HTML-Seite heißt: falscher Port oder ein Proxy-Login dazwischen.
+
+### 4. Die URL, unter der openGym Home Assistant erreicht
+
+Webhooks gehen in die **andere Richtung**: Der `api`-Container von openGym schickt einen `POST` an `https://<HA>/api/webhook/<id>`. Die Integration baut diese URL aus den Netzwerk-Einstellungen von Home Assistant, unter **Einstellungen → System → Netzwerk → Home-Assistant-URL**. Das Feld ist nur im **erweiterten Modus** sichtbar, den du im Benutzerprofil einschaltest.
+
+- **Internet**, z. B. `https://ha.example.de`: wird **bevorzugt**, sobald es gesetzt ist. Öffentliches HTTPS, dafür ist kein `INTEGRATIONS_ALLOW_LAN` nötig.
+- **Lokales Netzwerk**, z. B. `http://192.168.123.20:8123`: wird genommen, wenn keine Internet-URL gesetzt ist. Dafür braucht openGym `INTEGRATIONS_ALLOW_LAN=1` (oder die IP in `ALLOWED_PRIVATE_IPS`).
+
+Die gewählte URL muss **aus dem openGym-Container heraus** erreichbar sein, nicht nur von deinem Rechner aus:
+
+- Nimm die **IP-Adresse**. `homeassistant.local` (mDNS) löst im Docker-Container meist nicht auf.
+- Nimm nicht `127.0.0.1` oder `localhost`, auch wenn beides auf demselben Host läuft. Loopback ist immer gesperrt. Nimm die LAN-IP des Hosts.
+- Probe aus dem Container: `docker compose exec api wget -qO- http://192.168.123.20:8123/api/` muss mit `401` antworten, das heißt erreichbar. Fehlt `wget` im Image, nimm `node -e "fetch('http://192.168.123.20:8123/api/').then(r=>console.log(r.status))"`.
+
+Welche URL die Integration verwendet, zeigt der Einrichtungsdialog in Schritt 6 an.
+
+### 5. Integration installieren
+
+**Per HACS (empfohlen)**
 
 [![HACS openGym][hacs-shield]](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
 
-1. HACS → **⋮ → Custom Repositories** → Repository `JImmyB0nes/OpenGym-HomeAssistant`, Kategorie *Integration*
-2. Im Reiter **Integrationen** → *openGym* → **Download**
-3. Home Assistant neu starten
+1. HACS → **⋮ → Benutzerdefinierte Repositories** → `https://github.com/JImmyB0nes/OpenGym-HomeAssistant`, Typ **Integration** → **Hinzufügen**
+2. *openGym* suchen → **Herunterladen**
+3. **Home Assistant neu starten** (Einstellungen → System → ⏻ → Home Assistant neu starten)
 
-### Manuell
+**Manuell**
 
 ```bash
 git clone https://github.com/JImmyB0nes/OpenGym-HomeAssistant
 cp -r OpenGym-HomeAssistant/custom_components/opengym <config>/custom_components/
 ```
 
-## Einrichten
+Danach ebenfalls neu starten.
 
-### 1. openGym vorbereiten
+### 6. Integration einrichten und koppeln
 
-Webhooks gibt es nur auf der selbst gehosteten Instanz. In der `.env`:
+1. **Einstellungen → Geräte & Dienste → Integration hinzufügen → openGym**
+2. **URL** aus Schritt 3 eintragen, z. B. `http://192.168.123.14:8080`. Die Integration prüft sofort `GET /api/config`.
+3. **Kopplungscode erzeugen.** Öffne die openGym-Web-App im Browser, angemeldet mit dem Konto, das HA sehen soll:
+   **Einstellungen → Konto → „Mobile App koppeln“** → mit Passkey oder Passwort bestätigen („Bestätige zuerst, dass du es bist.“) → openGym zeigt einen 8-stelligen Code.
+   - Der Code gilt **5 Minuten** und nur einmal. Ein neuer Code ersetzt den alten.
+   - Erzeuge ihn im **Browser**. In der Handy-App klappt das nur, wenn das Konto ein Passwort hat.
+4. Den Code im Dialog eintragen. Optional einen Namen vergeben, das ist sinnvoll bei mehreren Profilen.
+5. **Webhook** wählen:
+   - **„Webhook automatisch einrichten“** (Standard): Die Integration legt in openGym selbst die Webhook-Verbindung „Home Assistant“ mit den Events `workout.finished`, `workout.pr` und `weighin.logged` an und übernimmt das Signing Secret. Voraussetzung sind Schritt 2 und Schritt 4. Klappt es nicht, steht im HA-Log *„could not create the webhook connection automatically“*. Die Integration läuft trotzdem und pollt weiter.
+   - **Manuell** (Haken aus): Der Dialog zeigt die Webhook-URL (`…/api/webhook/<id>`). Trage sie in openGym unter **Einstellungen → Integrationen → Webhooks → Verbinden** ein, wähle die drei Ereignisse *Training beendet*, *Neuer persönlicher Rekord* und *Wiegen erfasst* und kopiere das Signing Secret, das **nur einmal** angezeigt wird, ins Feld *Secret*. Ohne Secret werden Zustellungen nicht signaturgeprüft.
+6. Kontrolle: In HA unter **Entwicklerwerkzeuge → Ereignisse** das Ereignis `opengym_workout_finished` abonnieren. Dann in openGym unter **Einstellungen → Integrationen → Webhooks** die Verbindung öffnen und **Test-Ereignis senden** antippen, oder in HA die Aktion `opengym.trigger_test_event` ausführen. Es muss ein Ereignis mit `"test": true` erscheinen. Das Blatt der Verbindung in openGym zeigt auch die letzte Zustellung und den letzten Fehler.
 
-```ini
-INTEGRATIONS=webhook
-INTEGRATIONS_ALLOW_LAN=1   # nur, wenn HA im selben LAN liegt
-```
+### 7. Karten einbinden
 
-Danach den `api`-Container neu starten.
+Die Integration bringt drei Karten mit (`custom:opengym-muscle-card`, `custom:opengym-week-card`, `custom:opengym-next-card`). Es ist kein eigener HACS-Eintrag nötig.
 
-### 2. In Home Assistant hinzufügen
+- **Dashboards im UI-Modus (Standard):** Die Ressource `/opengym/opengym-muscle-card.js?v=<Version>` wird beim Start automatisch registriert und bei Updates angepasst. Danach Dashboard → **Bearbeiten → Karte hinzufügen** → nach *openGym* suchen.
+- **Dashboards im YAML-Modus:** Hier kann die Integration nichts eintragen. Füge die Ressource selbst hinzu:
 
-**Einstellungen → Geräte & Dienste → Integration hinzufügen → openGym** — URL der Instanz eintragen.
+  ```yaml
+  # configuration.yaml
+  lovelace:
+    mode: yaml
+    resources:
+      - url: /opengym/opengym-muscle-card.js?v=0.10.1
+        type: module
+  ```
 
-### 3. Koppeln
+  Alternativ in der UI unter **Einstellungen → Dashboards → ⋮ → Ressourcen → Ressource hinzufügen**, mit URL `/opengym/opengym-muscle-card.js` und Typ *JavaScript-Modul*. Dieser Menüpunkt erscheint nur im erweiterten Modus.
+- **Nach einem Update:** Die Karte meldet selbst, wenn der Browser noch die alte Version im Cache hat. Dann die Seite hart neu laden (Strg+F5). In der Companion-App den Frontend-Cache zurücksetzen: **Einstellungen → Companion App → Fehlerbehebung** (Android) bzw. **Debugging** (iOS) **→ Frontend-Cache zurücksetzen**.
 
-In openGym unter *Einstellungen → Integrationen → „Die App koppeln“* einen Code erstellen (5 Min. gültig) und im Dialog eingeben.
+### 8. Fehlerbehebung
 
-**„Webhook automatisch einrichten“** anklicken — dann legt die Integration die Webhook-Verbindung in openGym selbst an und übernimmt das Signing Secret automatisch. Dazu muss Home Assistant für den openGym-Server erreichbar sein (LAN genügt, wenn `INTEGRATIONS_ALLOW_LAN=1` gesetzt ist).
-
-Ohne Haken: Die Integrationsseite zeigt die **Webhook-URL** (`/api/webhook/…`) — diese manuell in openGym unter *Einstellungen → Integrationen → Webhooks* eintragen.
+| Problem | Ursache | Lösung |
+|---|---|---|
+| **`cannot_connect`** („nicht erreichbar“) beim Einrichten | falsche URL oder Port (`3000` statt `8080`), Proxy-Login oder HTML-Seite statt API, HTTPS-Zertifikat ungültig, Firewall | `curl <URL>/api/config` vom HA-Host aus muss JSON liefern; LAN-URL des `web`-Containers nehmen; Cloudflare Access o. Ä. für `/api/*` ausnehmen |
+| **`invalid_code`** („Code falsch oder abgelaufen“) | Code älter als 5 Minuten, schon benutzt, durch einen neueren ersetzt, oder für eine andere Instanz erzeugt | neuen Code unter *Einstellungen → Konto → Mobile App koppeln* erzeugen und sofort eintragen; dieselbe Instanz wie in der URL verwenden |
+| **Webhooks kommen nicht an** (Daten erst nach dem Poll) | `INTEGRATIONS=webhook` fehlt; HA-URL privat ohne `INTEGRATIONS_ALLOW_LAN=1`; `.local`-Name oder `127.0.0.1` als HA-URL; Container nach `.env`-Änderung nicht neu erstellt | Schritt 2 und 4 prüfen; `docker compose up -d`; `docker compose exec api printenv INTEGRATIONS_ALLOW_LAN`; in openGym das Blatt der Webhook-Verbindung öffnen und den letzten Fehler lesen (`refusing to connect` heißt: Adresse gesperrt) |
+| Webhook-Fehler `ECONNREFUSED` oder Timeout | HA-Port von der Firewall gesperrt, oder openGym in einem Docker-Netz ohne Route ins LAN | Port `8123` für den openGym-Host freigeben; Probe aus dem Container (Schritt 4); bei `network_mode`/eigenen Netzen die Route prüfen |
+| HA meldet eine **Reparatur** „Webhook-Zustellungen fehlgeschlagen“ | openGym konnte mehrfach nicht zustellen | Ursache wie oben beheben, dann die Reparatur bestätigen. Die fehlgeschlagenen Zustellungen werden neu eingereiht. |
+| **Karten fehlen** im Karten-Dialog | HA nach der Installation nicht neu gestartet; Dashboard im YAML-Modus; Browser-Cache | neu starten; Ressource manuell eintragen (Schritt 7); Strg+F5 bzw. Frontend-Cache der App leeren |
+| Karte zeigt „Konfigurationsfehler“ / *Custom element doesn't exist* | Ressource fehlt oder alter Cache | wie oben; unter *Ressourcen* muss `/opengym/opengym-muscle-card.js?v=…` stehen |
+| **Entitäten „Nicht verfügbar“** | openGym nicht erreichbar, nach mehreren Fehlschlägen erscheint zusätzlich eine Reparatur; Sitzung abgelaufen, dann startet HA eine erneute Authentifizierung | URL und Erreichbarkeit prüfen; bei *Erneut authentifizieren* einen neuen Kopplungscode eingeben. Seit 0.10.1 werden Uhr-Sensoren erst angelegt, wenn eine Uhr gekoppelt ist, und Live-Sensoren nur mit Admin-Konto. Alte Einträge entfernt die Integration selbst. |
+| Live-Fortschritt / „Training läuft“ fehlt | Konto ist kein Admin | openGym gibt Live-Präsenz nur an Admins heraus; mit einem Admin-Konto koppeln |
 
 ## Was die Integration anlegt
 
@@ -105,6 +245,7 @@ Ohne Haken: Die Integrationsseite zeigt die **Webhook-URL** (`/api/webhook/…`)
 | `sensor.opengym_week_volume` | Volumen dieser Woche (kg) |
 | `sensor.opengym_week_workouts` | Einheiten dieser Woche |
 | `sensor.opengym_streak` | Trainingstage in Folge |
+| `sensor.opengym_week_streak` | *(0.10.1)* Wochen-Serie wie in openGym: Wochen in Folge mit Training, inkl. Freeze (alle 4 Wochen einer, max. 2); die laufende Woche bricht die Serie nicht |
 | `sensor.opengym_days_since_workout` | Tage ohne Training — für Erinnerungen |
 | `sensor.opengym_next_session` | `Push · 2026-11-16` oder `Rest` |
 | `sensor.opengym_total_lifting` | jemals gehobenes Volumen |
@@ -115,11 +256,11 @@ Ohne Haken: Die Integrationsseite zeigt die **Webhook-URL** (`/api/webhook/…`)
 | `sensor.opengym_custom_exercises` | Anzahl eigener Übungen (Liste als Attribut) |
 | `sensor.opengym_muscle_balance` | Wochen-Sets je Muskel, Zielbereiche, zuletzt trainiert, bestes 1RM, PRs der Woche, Gewichtsverlauf, Ø Puls — als Attribute für die Karten |
 | `sensor.opengym_live_workout_progress` | *(0.10)* Fortschritt des laufenden Trainings in % (Übung x/y, Sätze x/y als Attribute; braucht Admin-Rechte) |
-| `sensor.opengym_rest_timer` | *(0.10)* Ende des aus HA gestarteten Pausentimers (Zeitstempel) |
+| `sensor.opengym_rest_timer` | *(0.10)* Pausentimer aus HA: `idle` (Bereit) / `running` (Läuft), Ende als Attribut `ends_at`, Restzeit `remaining` |
 | `sensor.opengym_<muskel>_weekly_sets` | *(0.10)* effektive Sätze dieser Woche je Muskel — mit `state_class: measurement`, also Langzeitstatistik |
 | `sensor.opengym_coach` | *(0.10, nur mit Coach)* `idle` · `queued` · `running` · `proposal`, Vorschlag und Änderungen als Attribute |
 | `sensor.opengym_paired_watches` | *(0.10, nur mit Uhr-Funktion)* gekoppelte Uhren, zuletzt gesehen |
-| `sensor.opengym_watch_heart_rate` | *(0.10)* neueste Herzfrequenz von der Uhr (bpm) |
+| `sensor.opengym_watch_heart_rate` | *(0.10)* neueste Herzfrequenz von der Uhr (bpm). Uhr-Sensoren gibt es erst, sobald eine Uhr gekoppelt ist; sie erscheinen dann ohne Neustart. |
 | `sensor.opengym_heart_rate_zone` | *(0.10)* HF-Zone 1–5 (50/60/70/80/90 % der Max-HF aus den Optionen) |
 
 Außerdem *(0.10)*:
@@ -130,13 +271,13 @@ Außerdem *(0.10)*:
 
 ### Muskeln & Erholung
 
-Aus openGyms Muskelkarte für 246 Übungen, abgedeckt 14 Gruppen (`chest`, `deltoids`, `hamstring`, `abs`, …):
+Aus openGyms Übungskatalog (alle Bibliotheksübungen, dieselben Gewichte wie die App: Hauptmuskel 1,0, Hilfsmuskeln 0,4; eigene Übungen über ihre Muskeln bzw. Körperpartie), abgedeckt 14 Gruppen (`chest`, `deltoids`, `hamstring`, `abs`, …):
 
 - `sensor.opengym_muscle_<gruppe>` — Tage seit der letzten Einheit (`999` = noch nie)
 - `binary_sensor.opengym_muscle_<gruppe>_recovering` — `on`, solange die Gruppe (< 2 Tage) noch erholt
 - `binary_sensor.opengym_rest_day` — `on`, wenn heute keine Einheit geplant ist
 - `binary_sensor.opengym_worked_out_today` / `_this_week` — Trainiert-Trigger für Automationen
-- `binary_sensor.opengym_active_workout` — `on`, solange live gehoben wird (mit Attributen: Name, Übung, Sätze). Benötigt Admin-Rechte auf der openGym-Instanz — ohne sie bleibt der Sensor unavailable.
+- `binary_sensor.opengym_active_workout` — `on`, solange live gehoben wird (mit Attributen: Name, Übung, Sätze). Benötigt Admin-Rechte auf der openGym-Instanz. Ohne sie wird der Sensor seit 0.10.1 gar nicht erst angelegt.
 - `calendar.opengym_training_plan` — Wochenplan inkl. Tages-Overrides
 - `calendar.opengym_workout_history` — abgeschlossene Workouts als Kalender
 - `update.opengym_open_gym_instanz` — zeigt an, wenn die Instanz hinter dem offiziellen Release steht
@@ -289,6 +430,10 @@ show_rest_button: true  # „Pausentimer starten“ (opengym.start_rest_timer)
 ```
 
 ![openGym Next Workout Card – dunkel](docs/screenshots/card/v010-next-dark-live.png)
+
+Seit **v0.10.1** zeigen alle Karten das Routinen-Icon aus openGym (als passendes MDI-Icon statt des internen Schlüssels wie `pullup`) und Übungsnamen statt Bibliotheks-IDs, auf Deutsch oder Englisch je nach HA-Sprache. Die Serie zählt in Wochen wie in der App.
+
+![openGym Karten 0.10.1 – dunkel](docs/screenshots/card/v0101-dark-all.png)
 
 Datenquelle ist `sensor.opengym_muscle_balance` — Wochen-Sets, Zielbereiche, zuletzt trainiert, 1RM, Müdigkeit, Trends, Plan und Historie stecken als Attribute drin und lassen sich damit auch in eigenen Karten, Templates oder Automationen verwenden.
 

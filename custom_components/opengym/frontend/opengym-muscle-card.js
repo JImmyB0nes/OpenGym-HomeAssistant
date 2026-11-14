@@ -34,7 +34,7 @@
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.10.0";
+const CARD_VERSION = "0.10.1";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
@@ -73,7 +73,7 @@ const UI = {
     setsUnit: "Sätze", rest: "Ruhetag", planWeek: "Wochenplan", front: "Vorne", back: "Hinten",
     stats: { sets: "Sätze", volume: "Volumen", workouts: "Einheiten", streak: "Serie", last: "Zuletzt",
       prs: "PRs (Woche)", hr: "Ø Puls", weight: "Gewicht", goal: (d) => `${d} zum Ziel`, atGoal: "Ziel erreicht",
-      days: (n) => (n === 1 ? "1 Tag" : `${n} Tage`) },
+      days: (n) => (n === 1 ? "1 Tag" : `${n} Tage`), weeks: (n) => (n === 1 ? "1 Woche" : `${n} Wochen`) },
     next: { title: "Nächstes Training", none: "Kein Training geplant", noneHint: "Genieß den Ruhetag.",
       tomorrow: "morgen", inDays: (n) => `in ${n} Tagen`, exercises: "Übungen", sets: "Sätze", rest: "Pause",
       startRest: "Pausentimer starten", restStarted: "Pausentimer läuft", more: (n) => `+ ${n} weitere`,
@@ -106,7 +106,7 @@ const UI = {
     setsUnit: "sets", rest: "Rest day", planWeek: "Weekly plan", front: "Front", back: "Back",
     stats: { sets: "Sets", volume: "Volume", workouts: "Workouts", streak: "Streak", last: "Last",
       prs: "PRs (week)", hr: "Avg HR", weight: "Weight", goal: (d) => `${d} to goal`, atGoal: "Goal reached",
-      days: (n) => (n === 1 ? "1 day" : `${n} days`) },
+      days: (n) => (n === 1 ? "1 day" : `${n} days`), weeks: (n) => (n === 1 ? "1 week" : `${n} weeks`) },
     next: { title: "Next workout", none: "No workout planned", noneHint: "Enjoy the rest day.",
       tomorrow: "tomorrow", inDays: (n) => `in ${n} days`, exercises: "Exercises", sets: "Sets", rest: "Rest",
       startRest: "Start rest timer", restStarted: "Rest timer running", more: (n) => `+ ${n} more`,
@@ -196,6 +196,42 @@ const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;
 function esc(v) { return v == null ? "" : String(v).replace(/[&<>"']/g, (c) => ESC[c]); }
 
 function rawLang(hass) { return (hass && (hass.locale?.language || hass.language)) || "de"; }
+
+// openGym keeps an icon *key* in a routine's `emoji` field (frontend/src/lib/glyphs.js), older
+// profiles an emoji. The integration sends the matching `icon`; this table is the fallback for
+// attributes without one. A raw key is never printed.
+const GLYPH_MDI = {
+  figureStrength: "mdi:weight-lifter", arm: "mdi:arm-flex", abs: "mdi:human", legs: "mdi:walk",
+  pullup: "mdi:human-handsup", dumbbell: "mdi:dumbbell", barbell: "mdi:weight-lifter",
+  kettlebell: "mdi:kettlebell", plate: "mdi:circle-double", machine: "mdi:cog",
+  figureRun: "mdi:run", bike: "mdi:bike", swim: "mdi:swim", boxing: "mdi:boxing-glove",
+  timer: "mdi:timer-outline", stretch: "mdi:yoga", moon: "mdi:weather-night", heart: "mdi:heart-pulse",
+  flame: "mdi:fire", bolt: "mdi:lightning-bolt", trophy: "mdi:trophy", medal: "mdi:medal",
+  crown: "mdi:crown", flag: "mdi:flag-checkered", star: "mdi:star", target: "mdi:target", shield: "mdi:shield",
+};
+const GLYPH_LEGACY = {
+  "💪": "arm", "🦾": "arm", "🫸": "figureStrength", "🫷": "pullup", "🏋": "dumbbell",
+  "🦵": "legs", "🍑": "legs", "🔥": "flame", "⚡": "bolt", "💥": "bolt", "🧨": "bolt", "😤": "flame",
+  "🏃": "figureRun", "🚴": "bike", "🏊": "swim", "🤸": "stretch", "🧘": "stretch", "🥊": "boxing",
+  "🧗": "pullup", "⛰": "figureRun", "🏔": "figureRun", "🚀": "bolt", "🎯": "target", "🏆": "trophy",
+  "🥇": "medal", "⭐": "star", "🌟": "star", "👑": "crown", "🛡": "shield", "⚔": "shield", "❤": "heart",
+  "🦍": "kettlebell", "🐂": "barbell", "🐻": "kettlebell", "🦁": "boxing", "🐺": "figureRun",
+  "🦈": "swim", "🤖": "machine",
+};
+function routineIcon(o) {
+  if (o && typeof o.icon === "string" && o.icon.startsWith("mdi:")) return o.icon;
+  const raw = o && typeof o.emoji === "string" ? o.emoji.trim() : "";
+  if (!raw) return GLYPH_MDI.figureStrength;
+  if (GLYPH_MDI[raw]) return GLYPH_MDI[raw];
+  const base = [...raw].filter((ch) => ch !== "\ufe0f" && ch !== "\u200d")[0];
+  return GLYPH_MDI[GLYPH_LEGACY[base]] || "mdi:dumbbell";
+}
+// An exercise's name in the dashboard user's language (the integration sends `names`).
+function exName(hass, ex) {
+  const n = ex && ex.names;
+  if (n && typeof n === "object") return n[langOf(hass)] || n.en || ex.name || "";
+  return (ex && ex.name) || "";
+}
 function langOf(hass) { const l = rawLang(hass).split("-")[0]; return UI[l] ? l : "en"; }
 
 function num(hass, n, digits = 1) {
@@ -456,6 +492,7 @@ class OpenGymMuscleCard extends OpenGymBase {
       volume: sibling(h, e, "week_volume", ["sensor.opengym_week_volume"]),
       workouts: sibling(h, e, "week_workouts", ["sensor.opengym_week_workouts"]),
       streak: sibling(h, e, "streak", ["sensor.opengym_streak"]),
+      weekStreak: sibling(h, e, "week_streak", ["sensor.opengym_week_streak"]),
       last: sibling(h, e, "last_workout", ["sensor.opengym_last_workout"]),
       live: sibling(h, e, "active_workout", ["binary_sensor.opengym_active_workout"]),
       hr: sibling(h, e, "workout_heart_rate", ["sensor.opengym_workout_heart_rate"]),
@@ -645,8 +682,11 @@ class OpenGymMuscleCard extends OpenGymBase {
     if (ok(vol)) items.push({ label: t.stats.volume, value: `${esc(compact(h, vol))}<small> ${esc(a.unit || "kg")}</small>`, more: cur ? null : ids.volume });
     const wk = cur ? cur.workouts : S[ids.workouts]?.state;
     if (ok(wk)) items.push({ label: t.stats.workouts, value: esc(num(h, wk, 0)), more: cur ? null : ids.workouts });
+    // openGym counts its streak in weeks (lib/streak.js); days only as a fallback
+    const wstreak = S[ids.weekStreak]?.state;
     const streak = S[ids.streak]?.state;
-    if (ok(streak)) items.push({ label: t.stats.streak, value: esc(t.stats.days(Number(streak))), more: ids.streak, hot: Number(streak) >= 3 });
+    if (ok(wstreak)) items.push({ label: t.stats.streak, value: esc(t.stats.weeks(Number(wstreak))), more: ids.weekStreak, hot: Number(wstreak) >= 4 });
+    else if (ok(streak)) items.push({ label: t.stats.streak, value: esc(t.stats.days(Number(streak))), more: ids.streak, hot: Number(streak) >= 3 });
     if (!cur && ok(a.week_prs)) {
       items.push({ label: t.stats.prs, value: esc(num(h, a.week_prs, 0)), more: ids.prs, hot: Number(a.week_prs) > 0 });
     }
@@ -798,7 +838,7 @@ class OpenGymMuscleCard extends OpenGymBase {
     const cells = history.map((w, i) => {
       const sets = w.sets || 0;
       const f = sets / max;
-      const lv = sets <= 0 ? 0 : f >= 0.75 ? 4 : f >= 0.5 ? 3 : f >= 0.25 ? 2 : 1;
+      const lv = sets <= 0 ? ((w.workouts || 0) > 0 ? 1 : 0) : f >= 0.75 ? 4 : f >= 0.5 ? 3 : f >= 0.25 ? 2 : 1;
       const offset = i - (n - 1);
       const label = t.heatCell(shortDate(h, w.week_start), num(h, sets), w.workouts || 0);
       const cur = mode === "sets" && offset === this._weekOffset ? " cur" : "";
@@ -815,10 +855,10 @@ class OpenGymMuscleCard extends OpenGymBase {
     const days = plan.map((d) => {
       const isToday = d.date === today;
       const body = d.name
-        ? `<span class="pd-name" title="${esc(d.name)}">${d.emoji ? esc(d.emoji) + " " : ""}${esc(d.name)}</span><span class="pd-sub">${esc(d.exercises)} ×</span>`
+        ? `<span class="pd-name" title="${esc(d.name)}">${esc(d.name)}</span><span class="pd-sub">${esc(d.exercises)} ×</span>`
         : `<span class="pd-rest">${esc(t.rest)}</span>`;
       return `<div class="pday${d.name ? " on" : ""}${isToday ? " today" : ""}"${isToday ? ' aria-current="date"' : ""}>
-        <span class="pd-day">${esc(shortDate(h, d.date, { weekday: "short" }))}</span>${body}</div>`;
+        <span class="pd-day">${esc(shortDate(h, d.date, { weekday: "short" }))}</span>${d.name ? `<ha-icon class="pd-icon" icon="${esc(routineIcon(d))}"></ha-icon>` : ""}${body}</div>`;
     }).join("");
     return `<div class="planweek"><div class="sechead">${esc(t.planWeek)}</div><div class="pdays">${days}</div></div>`;
   }
@@ -1042,6 +1082,7 @@ const MUSCLE_CSS = `
   .pd-name { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pd-sub { font-size:11px; color: var(--og-muted); }
   .pd-rest { font-size:12px; color: var(--og-muted); }
+  .pd-icon { --mdc-icon-size:16px; width:16px; height:16px; margin:0 auto; color: var(--og-accent); }
   .detail { border-radius: var(--og-radius); padding:12px 14px; background: var(--og-surface); display:flex; flex-direction:column; gap:12px;
             animation: og-in .25s var(--og-ease); }
   .detail-head { display:flex; align-items:center; gap:8px; }
@@ -1156,7 +1197,7 @@ class OpenGymWeekCard extends OpenGymBase {
       const past = d.date < today;
       const status = d.done ? "done" : d.planned ? (past ? "missed" : isToday ? "today" : "planned") : "rest";
       const title = d.done ? d.done.name : d.planned || t.rest;
-      const emoji = d.emoji ? `${esc(d.emoji)} ` : "";
+      const icon = d.planned || d.done ? `<ha-icon class="wicon" icon="${esc(routineIcon(d))}"></ha-icon>` : "";
       const chip = { done: t.done, missed: t.missed, today: t.todayLabel, planned: t.planned, rest: "" }[status];
       const meta = d.done
         ? `<span class="wmeta"><span class="vbar" aria-hidden="true"><span style="width:${Math.min(100, ((Number(d.done.volume) || 0) / maxVol) * 100)}%"></span></span>
@@ -1164,7 +1205,7 @@ class OpenGymWeekCard extends OpenGymBase {
         : "";
       return `<li class="wrow ${status}${isToday ? " is-today" : ""}"${isToday ? ' aria-current="date"' : ""}>
           <span class="wday"><b>${esc(shortDate(h, d.date, { weekday: "short" }))}</b><small>${esc(shortDate(h, d.date))}</small></span>
-          <span class="wmain"><span class="wtitle">${d.planned || d.done ? emoji : ""}${esc(title)}</span>${meta}</span>
+          <span class="wmain"><span class="wtitle">${icon}${esc(title)}</span>${meta}</span>
           ${chip ? `<span class="wchip ${status}">${esc(chip)}</span>` : ""}
         </li>`;
     }).join("");
@@ -1194,6 +1235,8 @@ const WEEK_CSS = `
   .wrow.is-today { background: color-mix(in srgb, var(--og-accent) 12%, transparent); }
   .wrow.is-today + .wrow { box-shadow:none; }
   .wrow.rest .wtitle { color: var(--og-muted); }
+  .wtitle { display:flex; align-items:center; gap:6px; }
+  .wicon { --mdc-icon-size:16px; width:16px; height:16px; color: var(--og-accent); flex:none; }
   .wday { display:flex; flex-direction:column; line-height:1.25; }
   .wday b { font-size:13px; font-weight:500; text-transform:capitalize; }
   .wday small { font-size:11px; color: var(--og-muted); }
@@ -1292,7 +1335,9 @@ class OpenGymNextCard extends OpenGymBase {
     const prog = S[this._ids?.progress];
     const active = prog && prog.attributes?.active && !Number.isNaN(Number(prog.state));
     const rest = S[this._ids?.rest];
-    const restEnds = rest && !["unknown", "unavailable", ""].includes(rest.state) ? new Date(rest.state) : null;
+    // 0.10.1: state idle/running, end time in `ends_at` (0.10.0: the state was the timestamp)
+    const restRaw = rest ? (rest.attributes?.ends_at || (/^\d{4}-/.test(rest.state) ? rest.state : null)) : null;
+    const restEnds = restRaw ? new Date(restRaw) : null;
     const restLeft = restEnds ? Math.round((restEnds - Date.now()) / 1000) : 0;
     const chips = [
       `${list.length} ${tn.exercises}`,
@@ -1303,7 +1348,7 @@ class OpenGymNextCard extends OpenGymBase {
       <style>${BASE_CSS}${NEXT_CSS}</style>
       <ha-card${this._accentStyle()}>
         <div class="head">
-          <div class="badge">${a.emoji ? `<span class="emoji">${esc(a.emoji)}</span>` : `<ha-icon icon="mdi:dumbbell"></ha-icon>`}</div>
+          <div class="badge"><ha-icon icon="${esc(routineIcon(a))}"></ha-icon></div>
           <div class="titles"><div class="title">${esc(a.name || title)}</div><div class="subtitle">${esc(this._when(a))}</div></div>
           ${Number(a.days_until) === 0 ? `<span class="nchip today">${esc(t.todayLabel)}</span>` : ""}
         </div>
@@ -1314,7 +1359,7 @@ class OpenGymNextCard extends OpenGymBase {
         ${c.show_muscles !== false && Array.isArray(a.muscles) && a.muscles.length
           ? `<div class="mchips">${a.muscles.map((m) => `<span class="mchip">${esc(names[m] || m)}</span>`).join("")}</div>` : ""}
         <ol class="exlist">${shown.map((ex, i) => `
-          <li><span class="idx">${i + 1}</span><span class="exn">${esc(ex.name || ex.id)}</span>
+          <li><span class="idx">${i + 1}</span><span class="exn">${esc(exName(this._hass, ex) || "?")}</span>
               <span class="dose">${esc(this._dose(ex, unit))}</span></li>`).join("")}
         </ol>
         ${list.length > shown.length ? `<div class="morex">${esc(tn.more(list.length - shown.length))}</div>` : ""}
@@ -1334,7 +1379,6 @@ class OpenGymNextCard extends OpenGymBase {
 }
 
 const NEXT_CSS = `
-  .emoji { font-size:22px; line-height:1; }
   .chips, .mchips { display:flex; flex-wrap:wrap; gap:6px; }
   .nchip { font-size:12px; font-weight:500; padding:4px 10px; border-radius:999px; background: var(--og-surface-2); color: var(--og-text); white-space:nowrap; }
   .nchip.today { color: var(--og-accent); background: color-mix(in srgb, var(--og-accent) 18%, transparent); }

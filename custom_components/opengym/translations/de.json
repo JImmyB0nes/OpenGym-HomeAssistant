@@ -10,7 +10,7 @@
       },
       "pair": {
         "title": "openGym koppeln",
-        "description": "1. Code erstellen: In openGym unter Einstellungen → Integrationen → „Die App koppeln“ einen Pairing-Code erzeugen und hier eintragen (5 Minuten gültig).\n\n2. Webhook einrichten (empfohlen, damit Home Assistant Änderungen sofort statt alle {poll_interval} Minuten per Poll erfährt): Lege in openGym unter Einstellungen → Integrationen → Webhooks eine neue Verbindung mit dieser URL an:\n{webhook_url}\nEvents: {events}. Das dabei angezeigte Signing Secret hier eintragen.\n\nOhne Webhook funktioniert die Integration trotzdem — dann werden Daten nur im Poll-Intervall aktualisiert.",
+        "description": "1. Code erstellen: In der openGym-Web-App unter Einstellungen → Konto → „Mobile App koppeln“ (mit Passkey oder Passwort bestätigen) einen Code erzeugen und hier eintragen (5 Minuten gültig).\n\n2. Webhook einrichten (empfohlen, damit Home Assistant Änderungen sofort statt alle {poll_interval} Minuten per Poll erfährt): Lege in openGym unter Einstellungen → Integrationen → Webhooks eine neue Verbindung mit dieser URL an:\n{webhook_url}\nEvents: {events}. Das dabei angezeigte Signing Secret hier eintragen.\n\nOhne Webhook funktioniert die Integration trotzdem — dann werden Daten nur im Poll-Intervall aktualisiert.",
         "data": {
           "code": "Pairing-Code",
           "name": "Name",
@@ -20,7 +20,7 @@
       },
       "reauth_confirm": {
         "title": "openGym neu koppeln",
-        "description": "Die openGym-Sitzung ist ungültig. Erstelle in openGym einen neuen Pairing-Code (Einstellungen → Integrationen → „Die App koppeln“) und trage ihn hier ein.",
+        "description": "Die openGym-Sitzung ist ungültig. Erstelle in openGym einen neuen Pairing-Code (openGym-Web-App: Einstellungen → Konto → „Mobile App koppeln“) und trage ihn hier ein.",
         "data": {
           "code": "Pairing-Code"
         }
@@ -70,6 +70,9 @@
       },
       "streak": {
         "name": "Workout-Streak"
+      },
+      "week_streak": {
+        "name": "Wochenserie"
       },
       "next_session": {
         "name": "Nächste Einheit"
@@ -192,7 +195,11 @@
         "name": "Live-Trainingsfortschritt"
       },
       "rest_timer": {
-        "name": "Pausentimer"
+        "name": "Pausentimer",
+        "state": {
+          "idle": "Bereit",
+          "running": "Läuft"
+        }
       },
       "coach_status": {
         "name": "Coach",

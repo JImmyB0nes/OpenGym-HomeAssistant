@@ -14,7 +14,7 @@ IntegrationConnection) and the app's own readers:
 from __future__ import annotations
 
 import copy
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 # --- plan editing ---------------------------------------------------------------
@@ -400,3 +400,235 @@ def our_connections(
 def failing_connection(conn: dict[str, Any]) -> bool:
     """A connection that needs attention (deliveries failed for good)."""
     return conn.get("status") == "attention" or int(conn.get("failed") or 0) > 0
+
+
+# --- routine icons ----------------------------------------------------------------
+#
+# openGym stores an icon *key* in a routine's `emoji` field (frontend/src/lib/glyphs.js),
+# older profiles still an emoji. The app draws its own SVGs for the keys; Home Assistant
+# gets the closest Material Design icon instead, so nothing has to be bundled.
+
+GLYPH_MDI: dict[str, str] = {
+    # Strength
+    "figureStrength": "mdi:weight-lifter",
+    "arm": "mdi:arm-flex",
+    "abs": "mdi:human",
+    "legs": "mdi:walk",
+    "pullup": "mdi:human-handsup",
+    # Equipment
+    "dumbbell": "mdi:dumbbell",
+    "barbell": "mdi:weight-lifter",
+    "kettlebell": "mdi:kettlebell",
+    "plate": "mdi:circle-double",
+    "machine": "mdi:cog",
+    # Cardio
+    "figureRun": "mdi:run",
+    "bike": "mdi:bike",
+    "swim": "mdi:swim",
+    "boxing": "mdi:boxing-glove",
+    "timer": "mdi:timer-outline",
+    # Recovery
+    "stretch": "mdi:yoga",
+    "moon": "mdi:weather-night",
+    "heart": "mdi:heart-pulse",
+    "flame": "mdi:fire",
+    "bolt": "mdi:lightning-bolt",
+    # the first picker's keys and what old emoji map onto
+    "trophy": "mdi:trophy",
+    "medal": "mdi:medal",
+    "crown": "mdi:crown",
+    "flag": "mdi:flag-checkered",
+    "star": "mdi:star",
+    "target": "mdi:target",
+    "shield": "mdi:shield",
+}
+GLYPH_DEFAULT = "figureStrength"  # glyphs.js DEFAULT_GLYPH: a routine without an icon
+GLYPH_FALLBACK_MDI = "mdi:dumbbell"  # a key this version does not know yet
+
+# glyphs.js LEGACY: emoji stored before the icon picker -> icon key
+GLYPH_LEGACY: dict[str, str] = {
+    "💪": "arm", "🦾": "arm", "🫸": "figureStrength", "🫷": "pullup",
+    "🏋️": "dumbbell", "🏋": "dumbbell", "🏋️‍♀️": "dumbbell",
+    "🦵": "legs", "🍑": "legs",
+    "🔥": "flame", "⚡": "bolt", "💥": "bolt", "🧨": "bolt", "😤": "flame",
+    "🏃": "figureRun", "🏃‍♀️": "figureRun", "🚴": "bike", "🏊": "swim",
+    "🤸": "stretch", "🧘": "stretch", "🧘‍♀️": "stretch",
+    "🥊": "boxing", "🧗": "pullup", "⛰️": "figureRun", "🏔️": "figureRun", "🚀": "bolt",
+    "🎯": "target", "🏆": "trophy", "🥇": "medal", "⭐": "star", "🌟": "star",
+    "👑": "crown", "🛡️": "shield", "⚔️": "shield", "❤️‍🔥": "heart",
+    "🦍": "kettlebell", "🐂": "barbell", "🐻": "kettlebell", "🦁": "boxing",
+    "🐺": "figureRun", "🦈": "swim", "🤖": "machine",
+}
+
+
+def routine_glyph(raw: Any) -> str | None:
+    """openGym's icon key for a routine's `emoji` value (glyphs.js glyphOf).
+
+    None for a value that is neither a known key nor a known emoji.
+    """
+    if not raw or not isinstance(raw, str):
+        return GLYPH_DEFAULT
+    value = raw.strip()
+    if value in GLYPH_MDI:
+        return value
+    if value in GLYPH_LEGACY:
+        return GLYPH_LEGACY[value]
+    base = [c for c in value if c not in ("\ufe0f", "\u200d")]
+    if base and base[0] in GLYPH_LEGACY:
+        return GLYPH_LEGACY[base[0]]
+    return None
+
+
+def routine_icon(raw: Any) -> str:
+    """Material Design icon for a routine's `emoji` value; never the raw key."""
+    key = routine_glyph(raw)
+    return GLYPH_MDI.get(key or "", GLYPH_FALLBACK_MDI)
+
+
+# --- exercise muscles (custom exercises) ---------------------------------------------
+#
+# Catalogue exercises come pre-computed from openGym's own muscleWeightsOf() (see
+# scripts/build_exercise_db.mjs). Custom exercises carry free text or just a body part;
+# this mirrors frontend/src/lib/muscles.js for them.
+
+MUSCLE_SLUGS = (
+    "trapezius", "deltoids", "chest", "upper-back", "serratus",
+    "biceps", "triceps", "forearm",
+    "abs", "obliques", "lower-back",
+    "gluteal", "quadriceps", "hamstring", "adductors", "hip-flexors",
+    "calves", "tibialis",
+)
+MUSCLE_ALIAS: dict[str, str | None] = {
+    "abs": "abs", "pectorals": "chest", "biceps": "biceps", "glutes": "gluteal",
+    "delts": "deltoids", "triceps": "triceps", "upper back": "upper-back",
+    "lats": "upper-back", "calves": "calves", "quads": "quadriceps",
+    "forearms": "forearm", "hamstrings": "hamstring", "spine": "lower-back",
+    "traps": "trapezius", "adductors": "adductors", "serratus anterior": "serratus",
+    "abductors": "gluteal", "levator scapulae": "trapezius",
+    "shoulders": "deltoids", "deltoids": "deltoids", "rear deltoids": "deltoids",
+    "rotator cuff": "deltoids", "quadriceps": "quadriceps", "core": "abs",
+    "abdominals": "abs", "lower abs": "abs", "chest": "chest", "upper chest": "chest",
+    "hip flexors": "hip-flexors", "obliques": "obliques", "lower back": "lower-back",
+    "rhomboids": "upper-back", "trapezius": "trapezius", "back": "upper-back",
+    "latissimus dorsi": "upper-back", "brachialis": "biceps", "soleus": "calves",
+    "shins": "tibialis", "wrists": "forearm", "wrist flexors": "forearm",
+    "wrist extensors": "forearm", "grip muscles": "forearm", "groin": "adductors",
+    "inner thighs": "adductors",
+    "ankles": None, "feet": None, "hands": None, "ankle stabilizers": None,
+    "sternocleidomastoid": None,
+}
+MUSCLES_BY_BODYPART: dict[str, dict[str, float]] = {
+    "chest": {"chest": 1},
+    "back": {"upper-back": 0.75, "lower-back": 0.25},
+    "shoulders": {"deltoids": 1},
+    "upper arms": {"biceps": 0.5, "triceps": 0.5},
+    "lower arms": {"forearm": 1},
+    "waist": {"abs": 0.7, "obliques": 0.3},
+    "upper legs": {"quadriceps": 0.4, "hamstring": 0.35, "gluteal": 0.25},
+    "lower legs": {"calves": 0.8, "tibialis": 0.2},
+    "neck": {"trapezius": 1},
+    "full body": {"chest": 0.2, "upper-back": 0.2, "gluteal": 0.2,
+                  "quadriceps": 0.2, "hamstring": 0.1, "abs": 0.1},
+    "cardio": {},
+}
+_SECONDARY = 0.4
+
+
+def _as_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    return [] if value is None or value == "" else [value]
+
+
+def canonical_muscle(value: Any) -> str | None:
+    name = str(value or "").lower().strip()
+    if name in MUSCLE_SLUGS:
+        return name
+    return MUSCLE_ALIAS.get(name)
+
+
+def custom_muscle_weights(ex: dict[str, Any]) -> dict[str, float]:
+    """muscles.js weightsOf() for a custom exercise or a history snapshot."""
+    weights = ex.get("muscleWeights")
+    if isinstance(weights, dict):
+        snap = {
+            slug: float(w) for slug, w in weights.items()
+            if slug in MUSCLE_SLUGS and isinstance(w, (int, float)) and 0 < w <= 1
+        }
+        if snap:
+            return snap
+    out: dict[str, float] = {}
+
+    def add(name: Any, w: float) -> None:
+        if slug := canonical_muscle(name):
+            out[slug] = max(out.get(slug, 0.0), w)
+
+    primary = next((ex[k] for k in ("primaries", "primaryMuscles", "primary") if k in ex), None)
+    secondary = next((ex[k] for k in ("secondaries", "secondaryMuscles", "secondary") if k in ex), None)
+    parts = [*_as_list(primary), *_as_list(secondary)]
+    groups = next((ex[k] for k in ("muscleGroups", "muscles", "targetMuscles") if k in ex), None)
+    if any(canonical_muscle(v) for v in parts):
+        for m in _as_list(primary):
+            add(m, 1.0)
+        for m in _as_list(secondary):
+            add(m, _SECONDARY)
+    elif groups:
+        for m in _as_list(groups):
+            add(m, 1.0)
+    else:
+        add(ex.get("tg"), 1.0)
+        add(ex.get("mg"), _SECONDARY)
+        for m in _as_list(ex.get("sm")):
+            add(m, _SECONDARY)
+    if not out:
+        out = dict(MUSCLES_BY_BODYPART.get(str(ex.get("bp") or ""), {}))
+    return {k: float(v) for k, v in out.items() if v > 0}
+
+
+def cap_words(text: str) -> str:
+    """format.js capWords: upper-case the first letter of every word."""
+    out = []
+    prev = ""
+    for ch in text:
+        out.append(ch.upper() if (prev == "" or prev in " (-/\t\n") and ch.islower() else ch)
+        prev = ch
+    return "".join(out)
+
+
+# --- week streak (frontend/src/lib/streak.js) -------------------------------------------
+
+STREAK_FREEZE_EVERY = 4
+STREAK_FREEZE_MAX = 2
+
+
+def week_streak(workout_days: list[date], today: date, week_start: int = 0) -> dict[str, Any]:
+    """openGym's week streak: weeks in a row with a workout, with freezes.
+
+    `week_start` is 0 for Monday, 6 for Sunday (date.weekday()). The current
+    week without a workout is open: it neither counts nor breaks the run.
+    """
+
+    def key(d: date) -> date:
+        return d - timedelta(days=(d.weekday() - week_start) % 7)
+
+    cur = key(today)
+    trained = {key(d) for d in workout_days if d and key(d) <= cur}
+    empty = {"current": 0, "best": 0, "freezes": 0, "this_week_done": False}
+    if not trained:
+        return empty
+    wk = max(min(trained), cur - timedelta(weeks=1500))
+    run = best = freezes = earned = 0
+    while wk <= cur:
+        if wk in trained:
+            run += 1
+            earned += 1
+            if earned % STREAK_FREEZE_EVERY == 0 and freezes < STREAK_FREEZE_MAX:
+                freezes += 1
+        elif wk != cur:
+            if freezes > 0:
+                freezes -= 1
+            else:
+                run = earned = freezes = 0
+        best = max(best, run)
+        wk += timedelta(weeks=1)
+    return {"current": run, "best": best, "freezes": freezes, "this_week_done": cur in trained}

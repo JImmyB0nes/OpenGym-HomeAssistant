@@ -55,11 +55,15 @@ PENDING = {
 }
 
 
-def _mock_all(aioclient_mock, *, coach=True, watch=True, integrations=True, rev=True, failing=False):
+def _mock_all(aioclient_mock, *, coach=True, watch=True, integrations=True, rev=True, failing=False,
+              admin=True, links=True):
     aioclient_mock.get(f"{URL}/api/data", headers=H, json={"state": _state(), "rev": 7})
     aioclient_mock.get(f"{URL}/api/me", headers=H, json={"user": {"id": "u1", "name": "Jessica"}})
-    aioclient_mock.get(f"{URL}/api/admin/users", headers=H, json={"users": [{"id": "u1", "live": {
-        "name": "Push", "exIdx": 1, "exTotal": 4, "setsDone": 5, "setsTotal": 12, "startedAt": 1_700_000_000_000, "updatedAt": 1_700_000_060_000}}]})
+    if admin:
+        aioclient_mock.get(f"{URL}/api/admin/users", headers=H, json={"users": [{"id": "u1", "live": {
+            "name": "Push", "exIdx": 1, "exTotal": 4, "setsDone": 5, "setsTotal": 12, "startedAt": 1_700_000_000_000, "updatedAt": 1_700_000_060_000}}]})
+    else:
+        aioclient_mock.get(f"{URL}/api/admin/users", status=403, headers=H, json={"error": "admin only"})
     if rev:
         aioclient_mock.get(f"{URL}/api/data/rev", headers=H, json={"rev": 7, "wid": None})
     else:
@@ -72,7 +76,9 @@ def _mock_all(aioclient_mock, *, coach=True, watch=True, integrations=True, rev=
     else:
         aioclient_mock.get(f"{URL}/api/coach/status", status=503, headers=H, json={"error": "Coach off", "code": "off"})
         aioclient_mock.post(f"{URL}/api/coach/review", status=503, headers=H, json={"error": "Coach off", "code": "off"})
-    if watch:
+    if watch and not links:
+        aioclient_mock.get(f"{URL}/api/watch/links", headers=H, json={"links": []})
+    elif watch:
         aioclient_mock.get(f"{URL}/api/watch/links", headers=H, json={"links": [{"id": "w1", "name": "Balance", "created": 1, "seen": 1_700_000_000_000}]})
         aioclient_mock.get(f"{URL}/api/watch/events", headers=H, json={"events": [
             {"type": "setDone", "wid": "x", "exId": "0025", "entryIdx": 0, "setIdx": 0, "w": 80, "r": 8, "at": 5, "hr": {"avg": 150, "max": 162}}],
@@ -135,6 +141,12 @@ async def test_full_features(hass: HomeAssistant, aioclient_mock, caplog, hass_w
     nxt = st("next_session").attributes
     _log("NEXT:", nxt)
     assert nxt["exercise_list"] and nxt["rest_sec"] == 120
+    # 0.10.1: icon instead of the raw key, names instead of library ids
+    assert nxt["icon"] == "mdi:arm-flex" and st("next_session").attributes["icon"] == "mdi:arm-flex"
+    assert nxt["exercise_list"][0]["name"] == "Barbell Bench Press", nxt["exercise_list"][0]
+    assert nxt["exercise_list"][0]["names"]["de"]
+    assert st("week_streak").state == "1"
+    assert "Barbell Bench Press" in hass.states.get(ids["best_one_rm"]).attributes
     act = hass.states.get(ids["active_workout"]).attributes
     assert act["exercise_index"] == 2 and act["sets_total"] == 12 and act["progress"] == 42
     # (9) repair issue
@@ -144,9 +156,9 @@ async def test_full_features(hass: HomeAssistant, aioclient_mock, caplog, hass_w
     await hass.services.async_call("opengym", "start_rest_timer", {}, blocking=True)
     body = _calls(aioclient_mock, "POST", "/api/push/rest-timer")[-1][2]
     assert body == {"seconds": 120}, body
-    assert st("rest_timer").state not in ("unknown", "unavailable")
+    assert st("rest_timer").state == "running" and st("rest_timer").attributes["ends_at"]
     await hass.services.async_call("opengym", "cancel_rest_timer", {}, blocking=True)
-    assert st("rest_timer").state == "unknown"
+    assert st("rest_timer").state == "idle" and st("rest_timer").attributes["ends_at"] is None
     # (10) plan edit with conflict retry: first PUT 409 hands back a newer doc
     newer = _state(); newer["dayPlan"] = {"2030-01-01": "pull"}
     from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMockResponse
@@ -267,3 +279,25 @@ async def test_options_and_fast_tick(hass: HomeAssistant, aioclient_mock) -> Non
     coord = entry.runtime_data.coordinator
     assert coord._unsub_fast is None
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_healthy_without_watch_or_admin(hass: HomeAssistant, aioclient_mock, caplog) -> None:
+    """0.10.1: a healthy setup shows no "unavailable" entities.
+
+    No watch paired -> no watch sensors; no admin -> no live presence
+    entities; the rest timer is idle, the Coach buttons usable.
+    """
+    entry = await _setup(hass, aioclient_mock, admin=False, links=False)
+    reg = er.async_get(hass)
+    ents = er.async_entries_for_config_entry(reg, entry.entry_id)
+    keys = {e.translation_key for e in ents}
+    for key in ("watch_paired", "watch_heart_rate", "watch_hr_zone", "live_progress", "active_workout"):
+        assert key not in keys, key
+    unavailable = [e.entity_id for e in ents if (s := hass.states.get(e.entity_id)) and s.state == "unavailable"]
+    assert not unavailable, unavailable
+    rest = next(e.entity_id for e in ents if e.translation_key == "rest_timer")
+    assert hass.states.get(rest).state == "idle"
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    errors = [r for r in caplog.records if r.levelname in ("ERROR", "CRITICAL")]
+    assert not errors, [r.getMessage() for r in errors]
