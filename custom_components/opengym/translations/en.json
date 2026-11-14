@@ -10,7 +10,7 @@
       },
       "pair": {
         "title": "Pair openGym",
-        "description": "1. Create a code: in openGym go to Settings → Integrations → \"Pair the mobile app\", generate a pairing code and enter it here (valid 5 minutes).\n\n2. Set up the webhook (recommended so Home Assistant gets changes instantly instead of polling every {poll_interval} minutes): create a new webhook connection in openGym under Settings → Integrations → Webhooks pointing to:\n{webhook_url}\nEvents: {events}. Enter the signing secret shown there below.\n\nWithout a webhook the integration still works — data is just refreshed at the poll interval.",
+        "description": "1. Create a code: in openGym go to Settings → Account → \"Pair the mobile app\" in the openGym web app, generate a pairing code and enter it here (valid 5 minutes).\n\n2. Set up the webhook (recommended so Home Assistant gets changes instantly instead of polling every {poll_interval} minutes): create a new webhook connection in openGym under Settings → Integrations → Webhooks pointing to:\n{webhook_url}\nEvents: {events}. Enter the signing secret shown there below.\n\nWithout a webhook the integration still works — data is just refreshed at the poll interval.",
         "data": {
           "code": "Pairing code",
           "name": "Name",
@@ -20,7 +20,7 @@
       },
       "reauth_confirm": {
         "title": "openGym re-pair",
-        "description": "The openGym session is no longer valid. Create a new pairing code in openGym (Settings → Integrations → \"Pair the mobile app\") and enter it here.",
+        "description": "The openGym session is no longer valid. Create a new pairing code in openGym (Settings → Account → \"Pair the mobile app\" in the openGym web app) and enter it here.",
         "data": {
           "code": "Pairing code"
         }
@@ -70,6 +70,9 @@
       },
       "streak": {
         "name": "Workout streak"
+      },
+      "week_streak": {
+        "name": "Week streak"
       },
       "next_session": {
         "name": "Next session"
@@ -192,7 +195,11 @@
         "name": "Live workout progress"
       },
       "rest_timer": {
-        "name": "Rest timer"
+        "name": "Rest timer",
+        "state": {
+          "idle": "Idle",
+          "running": "Running"
+        }
       },
       "coach_status": {
         "name": "Coach",

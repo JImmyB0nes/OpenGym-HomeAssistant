@@ -11,9 +11,10 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import PERCENTAGE, UnitOfMass, UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import logic
 from .const import (
@@ -26,7 +27,7 @@ from .const import (
     _CANON,
 )
 from .coordinator import OpenGymDataCoordinator, OpenGymState
-from .device_info import open_gym_device_info
+from .device_info import open_gym_device_info, prune_entities
 
 # (key, name, kind) — kind selects the value function below.
 STATIC_SENSORS = (
@@ -36,6 +37,7 @@ STATIC_SENSORS = (
     ("week_volume", "Volume this week", "volume"),
     ("week_workouts", "Workouts this week", "count"),
     ("streak", "Workout streak", "streak"),
+    ("week_streak", "Week streak", "week_streak"),
     ("next_session", "Next session", "next"),
     ("total_lifting", "Total lifted", "total"),
     ("goal_weight", "Goal weight", "goal"),
@@ -69,19 +71,42 @@ async def async_setup_entry(
         MuscleWeeklySetsSensor(coordinator, entry, muscle, label)
         for muscle, label in MUSCLES.items()
     ]
-    # (2) live workout + rest timer started from HA
-    entities += [LiveProgressSensor(coordinator, entry), RestTimerSensor(coordinator, entry)]
+    # (2) rest timer started from HA; live progress needs admin presence
+    entities.append(RestTimerSensor(coordinator, entry))
+    if coordinator.is_admin:
+        entities.append(LiveProgressSensor(coordinator, entry))
+    elif coordinator.is_admin is False:
+        prune_entities(hass, entry, "sensor", ("live_progress",))
     # (8) Coach — only when the instance runs it (503 "off" / 404 = not created)
     if coordinator.coach_enabled:
         entities.append(CoachStatusSensor(coordinator, entry))
-    # (12) watch — only when the watch endpoints exist
-    if coordinator.watch_supported:
-        entities += [
+    elif coordinator.coach_enabled is False:
+        prune_entities(hass, entry, "sensor", ("coach_status",))
+    if coordinator.watch_supported is False or (
+        coordinator.watch_supported and not coordinator.watch_links
+    ):
+        # no watch paired: its sensors come back by themselves once one is
+        prune_entities(hass, entry, "sensor", ("watch_paired", "watch_heart_rate", "watch_hr_zone"))
+    async_add_entities(entities)
+
+    # (12) watch — only once a watch is actually paired. A watch paired later
+    # adds its sensors on the next poll, no reload needed.
+    added = False
+
+    @callback
+    def _add_watch_sensors() -> None:
+        nonlocal added
+        if added or not coordinator.watch_supported or not coordinator.watch_links:
+            return
+        added = True
+        async_add_entities([
             WatchPairedSensor(coordinator, entry),
             WatchHeartRateSensor(coordinator, entry),
             WatchHeartRateZoneSensor(coordinator, entry),
-        ]
-    async_add_entities(entities)
+        ])
+
+    _add_watch_sensors()
+    entry.async_on_unload(coordinator.async_add_listener(_add_watch_sensors))
 
 
 class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
@@ -125,6 +150,9 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             self._attr_icon = "mdi:sleep"
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = "×"
+        elif kind == "week_streak":
+            self._attr_icon = "mdi:fire"
+            self._attr_native_unit_of_measurement = "wk"
         elif kind == "history":
             self._attr_icon = "mdi:grid"
             self._attr_native_unit_of_measurement = "wk"
@@ -145,6 +173,14 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
     @property
     def available(self) -> bool:
         return self.coordinator.last_update_success
+
+    @property
+    def icon(self) -> str | None:
+        if self._kind == "next":
+            state = self.coordinator.data
+            nxt = state.next_session(date.today()) if state else None
+            return logic.routine_icon(nxt[0].get("emoji")) if nxt else "mdi:calendar-blank"
+        return super().icon
 
     @property
     def native_unit_of_measurement(self) -> str | None:
@@ -182,6 +218,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return state.week_count(today)
         if self._kind == "streak":
             return state.streak(today)
+        if self._kind == "week_streak":
+            return state.week_streak(today)["current"]
         if self._kind == "next":
             nxt = state.next_session(today)
             if not nxt:
@@ -229,6 +267,9 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                     for e in w.get("entries") or []
                 ),
             }
+        if self._kind == "week_streak":
+            info = state.week_streak(date.today())
+            return {"best": info["best"], "freezes": info["freezes"], "this_week_done": info["this_week_done"]}
         if self._kind == "next":
             nxt = state.next_workout(date.today())
             if nxt:
@@ -239,6 +280,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                     "date": nxt["date"],
                     "name": nxt["name"],
                     "emoji": nxt["emoji"],
+                    "glyph": nxt["glyph"],
+                    "icon": nxt["icon"],
                     "days_until": nxt["days_until"],
                     "total_sets": nxt["total_sets"],
                     "muscles": nxt["muscles"],
@@ -264,7 +307,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "prs":
             pr_map = state.pr_map()
             return {
-                f"{ex_id}": f"{info['weight']}{state.unit}"
+                state.exercise_name(ex_id, state.lang): f"{info['weight']}{state.unit}"
                 + (f" ({info['date']})" if info.get("date") else "")
                 for ex_id, info in sorted(pr_map.items())
             }
@@ -276,7 +319,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return {"last_workout": day.isoformat() if day else None}
         if self._kind == "one_rm":
             return {
-                ex_id: round(est, 1) for ex_id, est in sorted(state.best_1rm().items())
+                state.exercise_name(ex_id, state.lang): round(est, 1)
+                for ex_id, est in sorted(state.best_1rm().items(), key=lambda kv: -kv[1])
             }
         if self._kind == "custom_ex":
             return {
@@ -430,12 +474,12 @@ class LiveProgressSensor(_Base):
     @property
     def available(self) -> bool:
         # openGym only shares presence with admins (GET /api/admin/users)
-        return self.coordinator.last_update_success and bool(self.coordinator.is_admin)
+        return self.coordinator.last_update_success
 
     @property
     def native_value(self) -> int | None:
         if not self.coordinator.presence:
-            return None
+            return 0
         return logic.presence_progress(self.coordinator.presence)["progress"]
 
     @property
@@ -447,27 +491,40 @@ class LiveProgressSensor(_Base):
 
 
 class RestTimerSensor(_Base):
-    """When the rest timer started from Home Assistant ends."""
+    """Rest timer started from Home Assistant: `idle` or `running`.
 
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
-    _attr_icon = "mdi:timer-sand"
+    Local state, so it is never unavailable; the end time is the `ends_at`
+    attribute.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["idle", "running"]
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry, "rest_timer", "Rest timer")
 
     @property
     def available(self) -> bool:
-        return self.coordinator.last_update_success
+        return True
 
     @property
-    def native_value(self):
-        return self.coordinator.rest_timer_end
+    def icon(self) -> str:
+        return "mdi:timer-sand" if self.coordinator.rest_timer_end else "mdi:timer-outline"
+
+    @property
+    def native_value(self) -> str:
+        end = self.coordinator.rest_timer_end
+        return "running" if end and end > dt_util.utcnow() else "idle"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         state = self.coordinator.data
+        end = self.coordinator.rest_timer_end
+        running = bool(end and end > dt_util.utcnow())
         return {
-            "seconds": self.coordinator.rest_timer_seconds,
+            "ends_at": end.isoformat() if running else None,
+            "remaining": max(0, round((end - dt_util.utcnow()).total_seconds())) if running else 0,
+            "seconds": self.coordinator.rest_timer_seconds if running else None,
             "default_seconds": state.rest_seconds() if state else None,
         }
 
@@ -498,9 +555,12 @@ class CoachStatusSensor(_Base):
 
 
 class _WatchBase(_Base):
+    """Created once a watch is paired; afterwards unknown (not unavailable)
+    while no watch is linked or nothing was measured yet."""
+
     @property
     def available(self) -> bool:
-        return self.coordinator.last_update_success and bool(self.coordinator.watch_supported)
+        return self.coordinator.last_update_success
 
 
 class WatchPairedSensor(_WatchBase):
@@ -538,13 +598,9 @@ class WatchHeartRateSensor(_WatchBase):
         super().__init__(coordinator, entry, "watch_heart_rate", "Watch heart rate")
 
     @property
-    def available(self) -> bool:
-        return super().available and bool(self.coordinator.watch_links)
-
-    @property
     def native_value(self) -> int | None:
         hr = self.coordinator.watch_hr
-        return hr["avg"] if hr else None
+        return hr["avg"] if hr and self.coordinator.watch_links else None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -570,13 +626,11 @@ class WatchHeartRateZoneSensor(_WatchBase):
         return float(self._entry.options.get(CONF_MAX_HEART_RATE, DEFAULT_MAX_HEART_RATE))
 
     @property
-    def available(self) -> bool:
-        return super().available and bool(self.coordinator.watch_links)
-
-    @property
     def native_value(self) -> int | None:
         hr = self.coordinator.watch_hr
-        return logic.hr_zone(hr["avg"], self._max_hr) if hr else None
+        if not hr or not self.coordinator.watch_links:
+            return None
+        return logic.hr_zone(hr["avg"], self._max_hr)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

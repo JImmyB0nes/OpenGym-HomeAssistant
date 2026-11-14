@@ -47,6 +47,20 @@ class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEn
     def available(self) -> bool:
         return self.coordinator.last_update_success
 
+    @staticmethod
+    def _describe(state, routine) -> str:
+        """One line per exercise, names resolved like the app shows them."""
+        lines = []
+        for ex in routine.get("ex") or []:
+            if not isinstance(ex, dict):
+                continue
+            name = state.exercise_name(ex.get("id"), state.lang, ex)
+            sets, reps = ex.get("sets"), ex.get("reps")
+            if ex.get("repsMin") and ex.get("repsMax"):
+                reps = f"{ex['repsMin']}–{ex['repsMax']}"
+            lines.append(f"{name}: {sets} × {reps}" if sets and reps else name)
+        return "\n".join(lines) or "–"
+
     def _events(self, start: datetime, end: datetime) -> list[CalendarEvent]:
         state = self.coordinator.data
         if state is None:
@@ -57,16 +71,17 @@ class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEn
             routine = state.routine_for(day)
             if routine:
                 name = routine.get("name") or "Workout"
-                if emoji := routine.get("emoji"):
+                emoji = routine.get("emoji")
+                # openGym stores an icon *key* ("pullup") there now; only a real
+                # emoji from an older profile is worth putting in the title.
+                if isinstance(emoji, str) and emoji and not emoji.isascii():
                     name = f"{emoji} {name}"
                 events.append(
                     CalendarEvent(
                         start=date(day.year, day.month, day.day),
                         end=date(day.year, day.month, day.day) + timedelta(days=1),
                         summary=name,
-                        description=(
-                            f"{len(routine.get('ex') or [])} exercises planned"
-                        ),
+                        description=self._describe(state, routine),
                     )
                 )
             day += timedelta(days=1)

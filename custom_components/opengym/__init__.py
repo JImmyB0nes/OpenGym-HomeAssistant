@@ -400,7 +400,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     "id": r.get("id"),
                     "name": r.get("name"),
                     "emoji": r.get("emoji"),
-                    "exercises": r.get("ex") or [],
+                    "icon": logic.routine_icon(r.get("emoji")),
+                    "exercises": [
+                        {**ex, "name": state.exercise_name(ex.get("id"), state.lang, ex)}
+                        if isinstance(ex, dict) else ex
+                        for ex in r.get("ex") or []
+                    ],
                 }
                 for r in state.routines.values()
             ],
@@ -550,7 +555,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
         except (OpenGymError, NoURLAvailableError) as err:
             _LOGGER.warning(
                 "openGym: could not create the webhook connection automatically (%s); "
-                "add it manually in Settings -> Integrations -> Webhooks",
+                "add it manually in openGym: Settings -> Integrations -> Webhooks -> Connect",
                 err,
             )
 
