@@ -40,7 +40,13 @@
     "step": {
       "init": {
         "data": {
-          "poll_interval": "Poll-Intervall (Minuten)"
+          "poll_interval": "Poll-Intervall (Minuten)",
+          "rev_interval": "Schnellprüfung (Sekunden, 0 = aus)",
+          "max_heart_rate": "Maximale Herzfrequenz (bpm, für HF-Zonen)"
+        },
+        "data_description": {
+          "rev_interval": "Prüft openGyms Revision (wenige Bytes) und Live-Daten; das ganze Dokument wird nur bei Änderungen geladen.",
+          "max_heart_rate": "Zonen 1–5 = 50/60/70/80/90 % dieses Werts."
         }
       }
     }
@@ -90,16 +96,16 @@
         "name": "Bizeps Trainingspause"
       },
       "muscle_triceps": {
-        "name": "Triceps Trainingspause"
+        "name": "Trizeps Trainingspause"
       },
       "muscle_forearms": {
         "name": "Unterarme Trainingspause"
       },
       "muscle_quadriceps": {
-        "name": "Beinstrecker Trainingspause"
+        "name": "Quadrizeps Trainingspause"
       },
       "muscle_hamstring": {
-        "name": "Kniebeugen Trainingspause"
+        "name": "Beinbeuger Trainingspause"
       },
       "muscle_adductors": {
         "name": "Adduktoren Trainingspause"
@@ -139,6 +145,72 @@
       },
       "week_history": {
         "name": "Wöchentliche Trainingshistorie"
+      },
+      "weekly_sets_chest": {
+        "name": "Brust Wochensätze"
+      },
+      "weekly_sets_upper_back": {
+        "name": "Oberer Rücken Wochensätze"
+      },
+      "weekly_sets_lower_back": {
+        "name": "Unterer Rücken Wochensätze"
+      },
+      "weekly_sets_trapezius": {
+        "name": "Trapez Wochensätze"
+      },
+      "weekly_sets_deltoids": {
+        "name": "Schultern Wochensätze"
+      },
+      "weekly_sets_biceps": {
+        "name": "Bizeps Wochensätze"
+      },
+      "weekly_sets_triceps": {
+        "name": "Trizeps Wochensätze"
+      },
+      "weekly_sets_forearms": {
+        "name": "Unterarme Wochensätze"
+      },
+      "weekly_sets_quadriceps": {
+        "name": "Quadrizeps Wochensätze"
+      },
+      "weekly_sets_hamstring": {
+        "name": "Beinbeuger Wochensätze"
+      },
+      "weekly_sets_adductors": {
+        "name": "Adduktoren Wochensätze"
+      },
+      "weekly_sets_calves": {
+        "name": "Waden Wochensätze"
+      },
+      "weekly_sets_gluteal": {
+        "name": "Gesäß Wochensätze"
+      },
+      "weekly_sets_abs": {
+        "name": "Core Wochensätze"
+      },
+      "live_progress": {
+        "name": "Live-Trainingsfortschritt"
+      },
+      "rest_timer": {
+        "name": "Pausentimer"
+      },
+      "coach_status": {
+        "name": "Coach",
+        "state": {
+          "idle": "Bereit",
+          "queued": "In Warteschlange",
+          "running": "Arbeitet",
+          "proposal": "Vorschlag wartet"
+        }
+      },
+      "watch_paired": {
+        "name": "Gekoppelte Uhren"
+      },
+      "watch_heart_rate": {
+        "name": "Uhr-Herzfrequenz"
+      },
+      "watch_hr_zone": {
+        "name": "Herzfrequenzzone"
       }
     },
     "binary_sensor": {
@@ -164,16 +236,16 @@
         "name": "Bizeps in Erholung"
       },
       "muscle_triceps_recovering": {
-        "name": "Triceps in Erholung"
+        "name": "Trizeps in Erholung"
       },
       "muscle_forearms_recovering": {
         "name": "Unterarme in Erholung"
       },
       "muscle_quadriceps_recovering": {
-        "name": "Beinstrecker in Erholung"
+        "name": "Quadrizeps in Erholung"
       },
       "muscle_hamstring_recovering": {
-        "name": "Kniebeugen in Erholung"
+        "name": "Beinbeuger in Erholung"
       },
       "muscle_adductors_recovering": {
         "name": "Adduktoren in Erholung"
@@ -195,6 +267,12 @@
       },
       "worked_out_this_week": {
         "name": "Diese Woche trainiert"
+      },
+      "day_done": {
+        "name": "Heute erledigt"
+      },
+      "nudge_pending": {
+        "name": "Trainingserinnerung fällig"
       }
     },
     "calendar": {
@@ -209,24 +287,184 @@
       "instance_update": {
         "name": "openGym-Instanz"
       }
+    },
+    "button": {
+      "coach_accept": {
+        "name": "Coach-Vorschlag annehmen"
+      },
+      "coach_reject": {
+        "name": "Coach-Vorschlag ablehnen"
+      }
     }
   },
   "services": {
     "log_weighin": {
-      "name": "Wiegewägung protokollieren",
-      "description": "Trägt eine Wiegewägung in openGym ein (Waage → openGym)."
+      "name": "Gewicht eintragen",
+      "description": "Trägt eine Wiegung in openGym ein (Waage → openGym).",
+      "fields": {
+        "weight": {
+          "name": "Gewicht",
+          "description": "Körpergewicht, das eingetragen wird."
+        },
+        "unit": {
+          "name": "Einheit",
+          "description": "kg oder lb."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Tag der Wiegung. Standard: heute."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
     },
     "trigger_test_event": {
       "name": "Test-Event senden",
-      "description": "Lässt openGym sofort ein Test-Webhook-Event zustellen."
+      "description": "Lässt openGym sofort ein Test-Webhook-Event zustellen.",
+      "fields": {
+        "event_type": {
+          "name": "Event-Typ",
+          "description": "Welches Test-Event openGym zustellt."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
     },
     "get_workout_history": {
       "name": "Workout-Verlauf abrufen",
-      "description": "Liefert Workouts mit Summary und Satzdetails der letzten N Tage. Antwortvariable für Vorlagen."
+      "description": "Liefert Workouts mit Summary und Satzdetails der letzten N Tage. Antwortvariable für Vorlagen.",
+      "fields": {
+        "days": {
+          "name": "Tage",
+          "description": "Wie viele Tage zurück."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
     },
     "get_routines": {
       "name": "Routinen abrufen",
-      "description": "Liefert die gespeicherten Routinen mit ihren Übungen. Antwortvariable für Vorlagen."
+      "description": "Liefert die gespeicherten Routinen mit ihren Übungen. Antwortvariable für Vorlagen.",
+      "fields": {
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "start_rest_timer": {
+      "name": "Pausentimer starten",
+      "description": "openGym schickt deinen Geräten eine Pausentimer-Benachrichtigung, die nach Ablauf klingelt.",
+      "fields": {
+        "seconds": {
+          "name": "Sekunden",
+          "description": "Pausenlänge, 1–3600 s. Standard: deine Pausenzeit aus openGym (sonst 90 s)."
+        },
+        "device_id": {
+          "name": "Geräte-ID",
+          "description": "Nur dieses Gerät (8–64 Zeichen A–Z, a–z, 0–9, _ oder -). Standard: alle deine Geräte."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "cancel_rest_timer": {
+      "name": "Pausentimer abbrechen",
+      "description": "Bricht die laufende Pausentimer-Benachrichtigung ab.",
+      "fields": {
+        "device_id": {
+          "name": "Geräte-ID",
+          "description": "Nur dieses Gerät (8–64 Zeichen A–Z, a–z, 0–9, _ oder -). Standard: alle deine Geräte."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "coach_review": {
+      "name": "Coach-Review anfordern",
+      "description": "Der openGym-Coach prüft deinen Plan; die Antwort kommt als Vorschlag (Coach-Sensor, Buttons zum Annehmen/Ablehnen). Der Coach muss auf der Instanz eingerichtet sein.",
+      "fields": {
+        "note": {
+          "name": "Notiz",
+          "description": "Worauf der Coach achten soll (optional)."
+        },
+        "lang": {
+          "name": "Sprache",
+          "description": "Sprache der Antwort."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "set_rest_day": {
+      "name": "Ruhetag setzen",
+      "description": "Macht einen Tag im openGym-Plan zum Ruhetag (oder nimmt die Tagesänderung zurück).",
+      "fields": {
+        "date": {
+          "name": "Datum",
+          "description": "Standard: heute."
+        },
+        "clear": {
+          "name": "Änderung zurücknehmen",
+          "description": "Entfernt die Tagesänderung, damit wieder der Wochenplan gilt."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "move_day": {
+      "name": "Trainingstag verschieben",
+      "description": "Verschiebt das geplante Training eines Tages auf einen anderen; der ursprüngliche Tag wird Ruhetag.",
+      "fields": {
+        "from_date": {
+          "name": "Von",
+          "description": "Tag, an dem das Training geplant ist."
+        },
+        "to_date": {
+          "name": "Nach",
+          "description": "Tag, auf den es verschoben wird."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "add_day_note": {
+      "name": "Tagesnotiz hinzufügen",
+      "description": "Markiert einen Tag als krank, unterwegs, Pause oder verletzt (plus Text). Der Tag zählt dann nicht für openGyms Erinnerungen. Nur heute oder früher; leer löscht die Notiz.",
+      "fields": {
+        "date": {
+          "name": "Datum",
+          "description": "Standard: heute."
+        },
+        "tag": {
+          "name": "Markierung",
+          "description": "krank (sick), unterwegs (travel), Pause (rest) oder verletzt (injured)."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Bis zu 500 Zeichen."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
     }
   },
   "device_automation": {
@@ -243,6 +481,64 @@
     "connection_error": {
       "title": "openGym nicht erreichbar",
       "description": "Die openGym-Instanz konnte nicht abgefragt werden.\n\nLetzter Fehler: {error}\n\nDas wird automatisch behoben, sobald der nächste Abruf erfolgreich ist."
+    },
+    "webhook_delivery_failed": {
+      "title": "openGym kann nicht an Home Assistant zustellen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Fehlgeschlagene Zustellungen wiederholen",
+            "description": "Die Webhook-Verbindung „{label}“ in openGym hat {failed} fehlgeschlagene Zustellungen.\n\nLetzter Fehler: {error}\n\nPrüfe, ob die Home-Assistant-URL von openGym aus erreichbar ist, und bestätige dann, um die fehlgeschlagenen Zustellungen erneut einzureihen."
+          }
+        },
+        "error": {
+          "retry_failed": "openGym konnte die Zustellungen nicht erneut einreihen."
+        },
+        "abort": {
+          "not_loaded": "Der openGym-Eintrag ist nicht geladen."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_entry": {
+      "message": "Unbekannter openGym-Konfigurationseintrag: {entry_id}"
+    },
+    "no_entry": {
+      "message": "Kein openGym-Konfigurationseintrag gefunden."
+    },
+    "entry_not_loaded": {
+      "message": "Der openGym-Eintrag ist nicht geladen."
+    },
+    "write_failed": {
+      "message": "openGym hat die Änderung abgelehnt: {error}"
+    },
+    "write_conflict": {
+      "message": "openGym hat sich beim Schreiben ständig geändert (Revisionskonflikt). Bitte erneut versuchen."
+    },
+    "plan_same_day": {
+      "message": "Ausgangs- und Zieltag sind gleich."
+    },
+    "plan_nothing_planned": {
+      "message": "Am {date} ist kein Training geplant."
+    },
+    "plan_note_future": {
+      "message": "Tagesnotizen gehen nur für heute oder früher."
+    },
+    "plan_note_tag": {
+      "message": "Unbekannte Markierung: {tag}"
+    },
+    "coach_off": {
+      "message": "Der Coach ist auf dieser openGym-Instanz nicht eingerichtet."
+    },
+    "coach_failed": {
+      "message": "Coach-Anfrage fehlgeschlagen: {error}"
+    },
+    "coach_nothing_pending": {
+      "message": "Es wartet kein Coach-Vorschlag."
+    },
+    "coach_use_app": {
+      "message": "Dieser Vorschlag ändert die Planstruktur; bitte in der openGym-App annehmen."
     }
   }
 }

@@ -68,7 +68,8 @@ class TestManifest(unittest.TestCase):
     def test_dependencies_are_known_ha_domains(self):
         # hassfest rejects unknown/built-in-misuse dependencies.
         known = {"frontend", "http", "websocket_api", "webhook", "calendar",
-                 "sensor", "binary_sensor", "update", "diagnostics"}
+                 "sensor", "binary_sensor", "update", "diagnostics", "button",
+                 "repairs"}
         for dep in self.manifest.get("dependencies", []):
             self.assertIn(dep, known, f"suspicious dependency {dep}")
 
@@ -125,10 +126,15 @@ class TestTranslations(unittest.TestCase):
         entity_keys = (set(self.en["entity"]["sensor"])
                        | set(self.en["entity"]["binary_sensor"])
                        | set(self.en["entity"]["calendar"])
-                       | set(self.en["entity"]["update"]))
+                       | set(self.en["entity"]["update"])
+                       | set(self.en["entity"]["button"]))
         src = "\n".join((COMP / f).read_text() for f in
-                        ("sensor.py", "binary_sensor.py", "calendar.py", "update.py"))
+                        ("sensor.py", "binary_sensor.py", "calendar.py", "update.py",
+                         "button.py"))
         declared = set(re.findall(r'_attr_translation_key\s*=\s*"([^"]+)"', src))
+        # entities that hand their key to a base class: (coordinator, entry, "key", "Name")
+        declared |= set(re.findall(
+            r'super\(\)\.__init__\(\s*coordinator,\s*entry,\s*"([^"]+)",\s*"', src))
         # STATIC_SENSORS tuples: ("key", "Name", "kind") — key is the translation key
         sensor_src = (COMP / "sensor.py").read_text()
         block = re.search(r"STATIC_SENSORS\s*=\s*\((.*?)\n\)", sensor_src, re.S).group(1)
@@ -139,11 +145,46 @@ class TestTranslations(unittest.TestCase):
         for slug in re.findall(r'"([\w-]+)":', mus):
             declared.add(f"muscle_{slug.replace('-', '_')}")
             declared.add(f"muscle_{slug.replace('-', '_')}_recovering")
+            declared.add(f"weekly_sets_{slug.replace('-', '_')}")
         declared |= {"rest_day", "active_workout", "worked_out_today",
                      "worked_out_this_week", "training_plan", "workout_history",
                      "instance_update"}
         missing = declared - entity_keys
         self.assertEqual(missing, set(), f"translation keys not in en.json: {missing}")
+
+
+    def test_new_entities_translated(self):
+        for key in ("live_progress", "rest_timer", "coach_status", "watch_paired",
+                    "watch_heart_rate", "watch_hr_zone"):
+            self.assertIn(key, self.en["entity"]["sensor"])
+        for key in ("day_done", "nudge_pending"):
+            self.assertIn(key, self.en["entity"]["binary_sensor"])
+        for key in ("coach_accept", "coach_reject"):
+            self.assertIn(key, self.en["entity"]["button"])
+
+    def test_exceptions_translated(self):
+        src = "\n".join(p.read_text() for p in COMP.glob("*.py"))
+        used = set(re.findall(r'translation_key="([a-z_]+)"', src))
+        used -= {"connection_error", "webhook_delivery_failed"}  # issues
+        used |= {f"plan_{k}" for k in ("same_day", "nothing_planned", "note_future", "note_tag")}
+        self.assertEqual(used - set(self.en["exceptions"]), set())
+
+    def test_fixable_issue_has_fix_flow(self):
+        for d in (self.en, self.de):
+            issue = d["issues"]["webhook_delivery_failed"]
+            self.assertIn("confirm", issue["fix_flow"]["step"])
+            self.assertNotIn("description", issue)
+
+    def test_every_service_translated(self):
+        import yaml
+        services = yaml.safe_load((COMP / "services.yaml").read_text())
+        for d in (self.en, self.de):
+            for name, spec in services.items():
+                self.assertIn("name", d["services"][name])
+                self.assertIn("description", d["services"][name])
+                for field in spec.get("fields") or {}:
+                    self.assertIn(field, d["services"][name].get("fields", {}),
+                                  f"{name}.{field} untranslated")
 
 
 class TestServices(unittest.TestCase):

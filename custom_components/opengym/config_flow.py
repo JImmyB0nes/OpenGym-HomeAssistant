@@ -34,15 +34,20 @@ from homeassistant.helpers.selector import (
 from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
 from .const import (
     CONF_AUTO_WEBHOOK,
+    CONF_MAX_HEART_RATE,
     CONF_NAME,
     CONF_POLL_INTERVAL,
+    CONF_REV_INTERVAL,
     CONF_SECRET,
     CONF_TOKEN,
     CONF_WEBHOOK_ID,
+    DEFAULT_MAX_HEART_RATE,
     DEFAULT_POLL_INTERVAL,
+    DEFAULT_REV_INTERVAL,
     DOMAIN,
     EVENT_TYPES,
     MAX_POLL_INTERVAL,
+    MAX_REV_INTERVAL,
     MIN_POLL_INTERVAL,
 )
 
@@ -217,7 +222,7 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 class OpenGymOptionsFlow(OptionsFlow):
-    """Adjust the polling interval."""
+    """Poll interval, fast revision tick and max heart rate."""
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
@@ -237,6 +242,28 @@ class OpenGymOptionsFlow(OptionsFlow):
                             max=MAX_POLL_INTERVAL,
                             step=1,
                             mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_REV_INTERVAL,
+                        default=self.config_entry.options.get(
+                            CONF_REV_INTERVAL, DEFAULT_REV_INTERVAL
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0, max=MAX_REV_INTERVAL, step=5,
+                            mode=NumberSelectorMode.BOX, unit_of_measurement="s",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_MAX_HEART_RATE,
+                        default=self.config_entry.options.get(
+                            CONF_MAX_HEART_RATE, DEFAULT_MAX_HEART_RATE
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=100, max=230, step=1,
+                            mode=NumberSelectorMode.BOX, unit_of_measurement="bpm",
                         )
                     ),
                 }
