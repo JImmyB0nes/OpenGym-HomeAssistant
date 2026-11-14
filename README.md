@@ -183,6 +183,10 @@ Sie zeichnet **openGyms echte Körperkarte** (dieselbe Geometrie wie die App) un
 | **Kraft** | Bestes geschätztes 1RM je Muskel (Epley) |
 | **Geplant** | Welche Muskeln die nächste geplante Einheit treffen würde — plus Wochenplan-Leiste |
 
+![openGym Muscle Card – hell](docs/screenshots/card/after-light.png)
+
+**Neues Design:** HA-Theme-Farben (hell & dunkel), Kennzahlen im Kopf (Sätze, Volumen, Einheiten, Serie, letztes Workout — Klick öffnet den Verlauf), Tooltips auf der Körperkarte, Tastaturbedienung, „Training läuft“-Badge, Lade-/Fehlerzustände, responsives Layout bis hin zu zwei Spalten auf breiten Dashboards und ein visueller Editor.
+
 Seit **v0.8.0** kann die Karte mehr als die App an dieser Stelle:
 
 - **Wochen-Pfeile** — mit ‹ › die Körperkarte für vergangene Wochen aufrufen
@@ -201,7 +205,12 @@ show_list: true     # Muskelliste mit Zielbalken
 show_week: true     # Wochenzeile mit Pfeil-Navigation
 show_heatmap: true  # 12-Wochen-Heatmap
 show_detail: true   # Detail-Panel bei Muskel-Klick
-accent: "#a3e635"   # eigene Akzentfarbe (Default: HA-Akzent)
+show_plan_week: true # Wochenplan-Leiste im Geplant-Modus
+show_stats: true    # Kennzahlen im Kopf
+show_legend: true   # Farblegende
+list_limit: 8       # Zeilen bis „Alle anzeigen“ (0 = alle)
+title: Muskelbalance # eigener Titel
+accent: "#a3e635"   # eigene Akzentfarbe (Default: HA-Primärfarbe)
 ```
 
 Dazu die **Wochen-Karte** — Plan und Realität nebeneinander:
@@ -209,7 +218,9 @@ Dazu die **Wochen-Karte** — Plan und Realität nebeneinander:
 ```yaml
 type: custom:opengym-week-card
 entity: sensor.opengym_muscle_balance
-days: 14            # Tage ab Montag dieser Woche
+days: 14            # Tage ab Montag dieser Woche (1–14)
+title: Trainingswoche
+accent: "#a3e635"
 ```
 
 Datenquelle ist `sensor.opengym_muscle_balance` — Wochen-Sets, Zielbereiche, zuletzt trainiert, 1RM, Müdigkeit, Trends, Plan und Historie stecken als Attribute drin und lassen sich damit auch in eigenen Karten, Templates oder Automationen verwenden.
