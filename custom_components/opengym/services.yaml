@@ -19,7 +19,8 @@ log_weighin:
       selector:
         date:
     entry_id:
-      example: 01ABCDEF...
+      selector:
+        text:
 
 trigger_test_event:
   fields:
@@ -33,7 +34,8 @@ trigger_test_event:
           mode: dropdown
       default: workout.finished
     entry_id:
-      example: 01ABCDEF...
+      selector:
+        text:
 
 get_workout_history:
   fields:
@@ -46,10 +48,12 @@ get_workout_history:
           mode: slider
       default: 30
     entry_id:
-      example: 01ABCDEF...
+      selector:
+        text:
 
 get_routines:
   fields:
     entry_id:
-      example: 01ABCDEF...
+      selector:
+        text:
 
