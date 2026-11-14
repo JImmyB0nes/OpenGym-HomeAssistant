@@ -15,7 +15,13 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MUSCLES
+from .const import (
+    DOMAIN,
+    FATIGUE_HALF_LIFE_DEFAULT_H,
+    FATIGUE_HALF_LIFE_H,
+    INTEGRATION_VERSION,
+    MUSCLES,
+)
 from .coordinator import OpenGymDataCoordinator, OpenGymState
 from .device_info import open_gym_device_info
 
@@ -36,6 +42,8 @@ STATIC_SENSORS = (
     ("best_one_rm", "Estimated 1RM", "one_rm"),
     ("custom_exercises", "Custom exercises", "custom_ex"),
     ("muscle_balance", "Muscle balance", "balance"),
+    ("muscle_fatigue", "Muscle fatigue", "fatigue"),
+    ("week_history", "Weekly training history", "history"),
 )
 
 
@@ -92,6 +100,13 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             # Weekly volume resets each week — a measurement, not a counter.
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_native_unit_of_measurement = "sets"
+        elif kind == "fatigue":
+            self._attr_icon = "mdi:sleep"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_native_unit_of_measurement = "×"
+        elif kind == "history":
+            self._attr_icon = "mdi:grid"
+            self._attr_native_unit_of_measurement = "wk"
         elif kind in ("volume", "total"):
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif kind == "count":
@@ -171,6 +186,11 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return state.custom_ex_count()
         if self._kind == "balance":
             return round(sum(state.week_sets(date.today()).values()), 1)
+        if self._kind == "fatigue":
+            values = state.fatigue(date.today())
+            return sum(1 for v in values.values() if v > 0.5)
+        if self._kind == "history":
+            return sum(1 for w in state.week_history(date.today()) if w["workouts"])
         return None
 
     @property
@@ -237,6 +257,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "balance":
             today = date.today()
             targets = state.muscle_targets()
+            fatigue_map = state.fatigue(today)
             return {
                 "week_start": state.week_start(today).isoformat(),
                 "sets": state.week_sets(today),
@@ -245,8 +266,28 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 "best_1rm": {
                     m: round(v, 1) for m, v in state.best_muscle_1rm().items()
                 },
+                "fatigue": fatigue_map,
+                "planned": state.planned_muscles(today),
+                "planned_week": state.planned_week(today),
+                "day_view": state.day_view(today),
+                "history": state.week_history(today),
+                "trends": state.muscle_trends(today),
+                "version": INTEGRATION_VERSION,
                 "unit": state.unit,
             }
+        if self._kind == "fatigue":
+            today = date.today()
+            fatigue_map = state.fatigue(today)
+            return {
+                m: {
+                    "value": v,
+                    "state": state.fatigue_state(v),
+                    "half_life_h": FATIGUE_HALF_LIFE_H.get(m, FATIGUE_HALF_LIFE_DEFAULT_H),
+                }
+                for m, v in sorted(fatigue_map.items(), key=lambda kv: -kv[1])
+            }
+        if self._kind == "history":
+            return {"weeks": state.week_history(date.today())}
         return {}
 
 

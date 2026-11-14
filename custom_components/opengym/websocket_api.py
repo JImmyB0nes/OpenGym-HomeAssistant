@@ -1,0 +1,76 @@
+"""WebSocket commands for the openGym integration.
+
+The bundled muscle card uses these to fetch per-muscle detail data (which is
+too fine-grained for sensor attributes) and to check that the served card
+version matches the backend — the version check surfaces stale browser caches
+after a HACS update instead of silently running an old card.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import date
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant.components import websocket_api
+from homeassistant.core import HomeAssistant, callback
+
+from .const import DOMAIN, INTEGRATION_VERSION, MAP_SLUGS
+
+_LOGGER = logging.getLogger(__name__)
+
+
+@callback
+def async_setup_ws(hass: HomeAssistant) -> None:
+    """Register the openGym WebSocket commands (idempotent)."""
+    if any(
+        key == f"{DOMAIN}_detail"
+        for key in getattr(hass, "_opengym_ws_registered", set()) or set()
+    ):
+        return
+    websocket_api.async_register_command(hass, ws_detail)
+    websocket_api.async_register_command(hass, ws_version)
+    hass.data.setdefault("_opengym_ws_registered", set()).add(f"{DOMAIN}_detail")
+    hass.data["_opengym_ws_registered"].add(f"{DOMAIN}_version")
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "opengym:detail",
+        vol.Required("muscle"): str,
+    }
+)
+@callback
+def ws_detail(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Return the muscle detail for one muscle of the first openGym entry."""
+    from .coordinator import OpenGymDataCoordinator  # local import: avoid cycles
+
+    entry = next(iter(hass.config_entries.async_entries(DOMAIN)), None)
+    if entry is None or not hasattr(entry, "runtime_data"):
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "no openGym entry")
+        return
+    coordinator: OpenGymDataCoordinator | None = getattr(
+        entry.runtime_data, "coordinator", None
+    )
+    state = coordinator.data if coordinator else None
+    if state is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_READY, "openGym data not ready")
+        return
+    muscle = msg.get("muscle")
+    if muscle not in MAP_SLUGS:
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "unknown muscle")
+        return
+    connection.send_result(msg["id"], state.muscle_detail(muscle, date.today()))
+
+
+@websocket_api.websocket_command({"type": "opengym:version"})
+@callback
+def ws_version(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Report the installed integration version (card cache check)."""
+    connection.send_result(msg["id"], {"version": INTEGRATION_VERSION})

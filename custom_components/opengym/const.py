@@ -117,6 +117,32 @@ SECONDARY_WEIGHT: Final[float] = 0.4
 # Days a muscle counts as still recovering after being trained.
 RECOVERY_DAYS = 2
 
+# --- fatigue model (mirrors openGym's frontend/src/lib/recovery.js) ---------
+# Fatigue stimulus in effective hard sets per muscle, decaying exponentially
+# with a muscle-specific half-life. Lower body (heavier loads, more damage)
+# recovers slower; small/core muscles share the fast 24 h lane.
+FATIGUE_HALF_LIFE_H: Final[dict[str, float]] = {
+    "trapezius": 30, "deltoids": 24, "chest": 30, "upper-back": 30,
+    "serratus": 24, "biceps": 24, "triceps": 24, "forearm": 24,
+    "abs": 24, "obliques": 24, "lower-back": 48, "gluteal": 48,
+    "quadriceps": 48, "hamstring": 48, "adductors": 48, "hip-flexors": 24,
+    "calves": 48, "tibialis": 24,
+}
+FATIGUE_HALF_LIFE_DEFAULT_H: Final[float] = 30
+
+# One full session (~8 hard sets, the per-session growth plateau) scores 1.0.
+FATIGUE_SETS_PER_UNIT: Final[float] = 8.0
+# Beyond ~12 sets the growth response plateaus — junk volume must not
+# extend the red tail linearly.
+FATIGUE_MAX_SETS_PER_SESSION: Final[int] = 12
+# Scan bound: after 30 days even a 24 h half-life retains < 1e-9.
+FATIGUE_SCAN_DAYS: Final[int] = 30
+
+# Fatigue buckets (openGym's FATIGUE_STATES): < 0.25 ready, 0.25–0.5
+# recovering, above that fatigued.
+FATIGUE_READY_MAX: Final[float] = 0.25
+FATIGUE_RECOVERING_MAX: Final[float] = 0.5
+
 # Presence counts as "training now" for at most this many seconds after the
 # last heartbeat (openGym expires live entries after 70 s).
 PRESENCE_MAX_AGE = 90
