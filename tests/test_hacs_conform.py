@@ -6,7 +6,8 @@ plain unittests (no HA install needed):
 - manifest: required keys, semver version, valid enums, real dependencies,
   https docs/issue tracker, domain == folder
 - hacs.json: valid JSON, name, HA minimum version
-- brand: icon.png + dark_icon.png present (device branding)
+- brand: icon.png + dark_icon.png present, sizes as hassfest's brand_images
+  check demands (hacs/default fails new additions on its warnings)
 - translations: en+de parse, every _attr_translation_key in code exists
 - services.yaml: exactly the services registered in code
 - version coherence: manifest version == card CARD_VERSION == git tag
@@ -99,6 +100,27 @@ class TestHacs(unittest.TestCase):
         brand = COMP / "brand"
         self.assertTrue((brand / "icon.png").exists())
         self.assertTrue((brand / "dark_icon.png").exists())
+
+    def test_brand_image_sizes(self):
+        # Mirrors hassfest brand_images.py: icon 256x256, icon@2x 512x512,
+        # logo shortest side 128-256, logo@2x 256-512; dark_ variants alike.
+        import struct
+        allowed = {f"{d}{k}{s}.png" for d in ("", "dark_")
+                   for k in ("icon", "logo") for s in ("", "@2x")}
+        for path in sorted((COMP / "brand").iterdir()):
+            self.assertIn(path.name, allowed, f"unexpected brand file {path.name}")
+            head = path.read_bytes()[:24]
+            self.assertEqual(head[:8], b"\x89PNG\r\n\x1a\n", path.name)
+            w, h = struct.unpack(">II", head[16:24])
+            base = path.name.removeprefix("dark_")
+            if base.startswith("icon"):
+                n = 512 if "@2x" in base else 256
+                self.assertEqual((w, h), (n, n), path.name)
+            else:
+                lo, hi = (256, 512) if "@2x" in base else (128, 256)
+                self.assertTrue(lo <= min(w, h) <= hi, f"{path.name} {w}x{h}")
+            if "@2x" in base:
+                self.assertTrue((COMP / "brand" / path.name.replace("@2x", "")).exists())
 
 
 class TestTranslations(unittest.TestCase):

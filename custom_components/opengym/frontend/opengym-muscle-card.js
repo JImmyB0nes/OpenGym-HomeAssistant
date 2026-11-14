@@ -34,7 +34,7 @@
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.10.1";
+const CARD_VERSION = "0.10.2";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
