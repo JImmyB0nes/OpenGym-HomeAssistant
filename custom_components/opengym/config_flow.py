@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 from typing import Any
 
@@ -23,13 +24,14 @@ try:  # HA >= 2024.4
 except ImportError:  # HA < 2024.4
     from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
 )
 
-from .api import OpenGymApiClient, OpenGymError
+from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
 from .const import (
     CONF_AUTO_WEBHOOK,
     CONF_NAME,
@@ -43,6 +45,20 @@ from .const import (
     MAX_POLL_INTERVAL,
     MIN_POLL_INTERVAL,
 )
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _pair_error(err: OpenGymError) -> str:
+    """Map a pairing failure to a form error key.
+
+    Only openGym's 400 ("invalid or expired code") or a missing token is a
+    wrong code; anything else (timeout, 5xx, proxy page) is a connection
+    problem and must not be reported as "code wrong".
+    """
+    if isinstance(err, OpenGymConnectionError) and err.status != 400:
+        return "cannot_connect"
+    return "invalid_code"
 
 
 class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -88,11 +104,13 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
             client = OpenGymApiClient(self.hass, self._url)
             try:
                 token = await client.redeem_pairing_code(user_input["code"].strip())
-            except OpenGymError:
+            except OpenGymError as err:
+                _LOGGER.debug("openGym: re-pairing failed: %s", err)
                 return self.async_show_form(
                     step_id="reauth_confirm",
                     data_schema=vol.Schema({vol.Required("code"): cv.string}),
-                    errors={"base": "invalid_code"},
+                    errors={"base": _pair_error(err)},
+                    description_placeholders={"url": self._url},
                 )
             entry = self._reauth_entry()
             return self.async_update_reload_and_abort(
@@ -115,8 +133,12 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
             client = OpenGymApiClient(self.hass, url)
             try:
                 await client.check_connection()
-            except OpenGymError:
+            except OpenGymError as err:
+                _LOGGER.warning("openGym: %s not reachable: %s", url, err)
                 errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001 — never crash the flow
+                _LOGGER.exception("openGym: unexpected error checking %s", url)
+                errors["base"] = "unknown"
             else:
                 self._url = url
                 return await self.async_step_pair()
@@ -137,8 +159,12 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._token = await client.redeem_pairing_code(
                     user_input["code"].strip()
                 )
-            except OpenGymError:
-                errors["base"] = "invalid_code"
+            except OpenGymError as err:
+                _LOGGER.warning("openGym: pairing failed: %s", err)
+                errors["base"] = _pair_error(err)
+            except Exception:  # noqa: BLE001 — never crash the flow
+                _LOGGER.exception("openGym: unexpected error while pairing")
+                errors["base"] = "unknown"
             else:
                 await self.async_set_unique_id(secrets.token_hex(8))
                 self._abort_if_unique_id_configured()
@@ -167,13 +193,15 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 )
 
+        try:
+            webhook_url = webhook.async_generate_url(self.hass, self._webhook_id)
+        except NoURLAvailableError:
+            webhook_url = f"<Home-Assistant-URL>/api/webhook/{self._webhook_id}"
         return self.async_show_form(
             step_id="pair",
             description_placeholders={
                 "url": self._url,
-                "webhook_url": webhook.async_generate_url(
-                    self.hass, self._webhook_id
-                ),
+                "webhook_url": webhook_url,
                 "events": ", ".join(EVENT_TYPES),
                 "poll_interval": str(DEFAULT_POLL_INTERVAL),
             },

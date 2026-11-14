@@ -35,8 +35,8 @@ async def async_get_config_entry_diagnostics(
             "last_update_success": coordinator.last_update_success
             if coordinator
             else None,
-            "last_update_time": str(coordinator.last_update_time)
-            if coordinator and coordinator.last_update_time
+            "last_exception": repr(coordinator.last_exception)
+            if coordinator and coordinator.last_exception
             else None,
             "consecutive_failures": getattr(coordinator, "consecutive_failures", None),
             "is_admin": getattr(coordinator, "is_admin", None),

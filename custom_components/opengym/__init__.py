@@ -19,6 +19,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_START, Platform
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
@@ -88,15 +89,20 @@ class OpenGymRuntime:
         self.coordinator = OpenGymDataCoordinator(hass, entry, self.client)
 
     async def async_setup(self) -> None:
-        """Register the webhook route and do an initial poll."""
+        """Do an initial poll, then register the webhook route.
+
+        The first refresh may raise ConfigEntryNotReady; registering the
+        webhook only afterwards keeps a setup retry from failing with
+        "Handler is already defined!".
+        """
+        await self.coordinator.async_config_entry_first_refresh()
         webhook.async_register(
             self.hass,
-            self.entry.data[CONF_WEBHOOK_ID],
+            DOMAIN,
             "openGym",
+            self.entry.data[CONF_WEBHOOK_ID],
             self._handle_webhook,
-            handle_args=(self,),
         )
-        await self.coordinator.async_config_entry_first_refresh()
 
     async def async_connect_webhook(self) -> str | None:
         """Create the webhook connection in openGym; returns the new secret."""
@@ -111,7 +117,7 @@ class OpenGymRuntime:
         webhook.async_unregister(self.hass, self.entry.data[CONF_WEBHOOK_ID])
 
     async def _handle_webhook(
-        self, hass: HomeAssistant, request, runtime: OpenGymRuntime
+        self, hass: HomeAssistant, webhook_id: str, request
     ) -> None:
         """Handle an incoming openGym webhook delivery."""
         try:
@@ -184,13 +190,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def handle_trigger_test(call: ServiceCall) -> None:
         """Ask openGym to deliver a test webhook now."""
-        entry = next(
-            (e for e in hass.config_entries.async_entries(DOMAIN)
-             if e.entry_id == call.data.get("entry_id")),
-            next(hass.config_entries.async_entries(DOMAIN), None),
-        )
-        if entry is None:
-            raise ValueError("no openGym config entry found")
+        entry = _entry_for_call(hass, call)
         runtime: OpenGymRuntime = entry.runtime_data
         connections = (await runtime.client.list_integrations()).get("connections") or []
         webhook_conns = [c for c in connections if c.get("kind") == "webhook" or c.get("provider") == "webhook"]
@@ -349,7 +349,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
                     data={**entry.data, CONF_SECRET: secret, CONF_AUTO_WEBHOOK: False},
                 )
                 _LOGGER.info("openGym: webhook connection created in openGym")
-        except OpenGymError as err:
+        except (OpenGymError, NoURLAvailableError) as err:
             _LOGGER.warning(
                 "openGym: could not create the webhook connection automatically (%s); "
                 "add it manually in Settings -> Integrations -> Webhooks",

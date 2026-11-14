@@ -23,7 +23,11 @@ _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent
 
-LOVELACE_DATA_KEY = "lovelace_data"
+# hass.data key of Lovelace's LovelaceData (HassKey "lovelace" in current HA).
+LOVELACE_DATA_KEY = "lovelace"
+# Give up after this many 30 s retries (YAML-mode dashboards never get a
+# writable resource collection, so retrying forever only spams the loop).
+MAX_ATTEMPTS = 20
 
 
 def _resources(hass: HomeAssistant) -> Any | None:
@@ -71,10 +75,24 @@ async def _register_modules(hass: HomeAssistant, resources: Any) -> None:
 def async_schedule_frontend(hass: HomeAssistant) -> None:
     """Serve /opengym/* now, add the resource as soon as Lovelace is up."""
 
+    attempts = 0
+    path_done = False
+
     async def _attempt(_now: Any) -> None:
-        await _register_path(hass)
+        nonlocal attempts, path_done
+        if not path_done:
+            await _register_path(hass)
+            path_done = True
         resources = _resources(hass)
         if resources is None:
+            attempts += 1
+            if attempts >= MAX_ATTEMPTS:
+                _LOGGER.info(
+                    "openGym: no writable Lovelace resource collection (YAML mode?); "
+                    "add %s/opengym-muscle-card.js as a module resource manually",
+                    URL_BASE,
+                )
+                return
             _LOGGER.debug("openGym: Lovelace not ready, retrying resource registration")
             async_call_later(hass, 30, _attempt)
             return

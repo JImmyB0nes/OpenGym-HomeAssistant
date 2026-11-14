@@ -28,7 +28,8 @@
     },
     "error": {
       "cannot_connect": "openGym is not reachable at this URL.",
-      "invalid_code": "Code wrong or expired (valid 5 minutes)."
+      "invalid_code": "Code wrong or expired (valid 5 minutes).",
+      "unknown": "Unexpected error, see the Home Assistant log."
     },
     "abort": {
       "already_configured": "This instance is already configured.",
@@ -236,6 +237,12 @@
     },
     "action_type": {
       "log_weighin": "Log weigh-in"
+    }
+  },
+  "issues": {
+    "connection_error": {
+      "title": "openGym not reachable",
+      "description": "The openGym instance could not be polled.\n\nLast error: {error}\n\nThis clears itself as soon as the next poll succeeds."
     }
   }
 }

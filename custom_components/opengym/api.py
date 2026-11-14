@@ -21,6 +21,10 @@ class OpenGymUnauthorizedError(OpenGymError):
 class OpenGymConnectionError(OpenGymError):
     """Server unreachable or bad response."""
 
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
 
 class OpenGymApiClient:
     """Talks to one openGym instance, authenticated with a Bearer token."""
@@ -59,19 +63,34 @@ class OpenGymApiClient:
                 if resp.status >= 400:
                     body = await resp.text()
                     raise OpenGymConnectionError(
-                        f"{method} {path} -> {resp.status}: {body[:200]}"
+                        f"{method} {path} -> {resp.status}: {body[:200]}",
+                        status=resp.status,
                     )
                 if resp.content_type and "json" in resp.content_type:
                     return await resp.json()
                 return {}
-        except aiohttp.ClientError as err:
-            raise OpenGymConnectionError(str(err)) from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            # aiohttp raises a bare TimeoutError on ClientTimeout(total=...)
+            raise OpenGymConnectionError(
+                f"{method} {path}: {err!r}"
+            ) from err
+        except ValueError as err:  # malformed JSON / invalid URL
+            raise OpenGymConnectionError(f"{method} {path}: {err}") from err
 
     # --- bootstrap / auth -------------------------------------------------
 
     async def check_connection(self) -> None:
-        """Public endpoint, no auth needed. Raises on unreachable host."""
-        await self._request("GET", "/api/config", auth=False)
+        """Public endpoint, no auth needed. Raises on unreachable host.
+
+        Also raises when the answer is not openGym's JSON (e.g. an HTML page
+        from a reverse proxy or the wrong port), so the user gets
+        "cannot connect" right away instead of a confusing pairing error.
+        """
+        data = await self._request("GET", "/api/config", auth=False)
+        if not isinstance(data, dict) or "invite_only" not in data:
+            raise OpenGymConnectionError(
+                "GET /api/config did not return openGym's JSON config"
+            )
 
     async def redeem_pairing_code(self, code: str) -> str:
         """Turn an 8-character pairing code into a Bearer token."""
@@ -96,7 +115,7 @@ class OpenGymApiClient:
         try:
             data = await self._request("GET", "/api/admin/users")
         except OpenGymConnectionError as err:
-            if "403" in str(err):
+            if err.status == 403:
                 return None
             raise
         return data.get("users") or []

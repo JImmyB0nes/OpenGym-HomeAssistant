@@ -537,6 +537,7 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"{DOMAIN}_{entry.entry_id}",
             update_interval=SCAN_INTERVAL,
         )
@@ -564,7 +565,7 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
                     self.hass,
                     DOMAIN,
                     f"connection_error_{self.entry.entry_id}",
-                    is_fixable=True,
+                    is_fixable=False,  # no repairs flow; clears itself
                     severity=ir.IssueSeverity.ERROR,
                     translation_key="connection_error",
                     translation_placeholders={"error": str(err)[:120]},

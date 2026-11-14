@@ -3,16 +3,11 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Any
-
-from homeassistant.components.calendar import (
-    CalendarEntity,
-    CalendarEntityFeature,
-    CalendarEvent,
-)
+from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .device_info import open_gym_device_info
@@ -42,7 +37,6 @@ class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEn
     _attr_has_entity_name = True
     _attr_translation_key = "training_plan"
     _attr_name = "Training plan"
-    _attr_supported_features = CalendarEntityFeature.EVENT
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)
@@ -80,7 +74,7 @@ class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEn
 
     @property
     def event(self) -> CalendarEvent | None:
-        today = datetime.combine(date.today(), datetime.min.time())
+        today = dt_util.start_of_local_day()
         events = self._events(today, today + timedelta(days=1))
         return events[0] if events else None
 
@@ -119,13 +113,20 @@ class WorkoutHistoryCalendar(CoordinatorEntity[OpenGymDataCoordinator], Calendar
                 continue
             if not (start.date() <= d < end.date()):
                 continue
-            base = datetime(d.year, d.month, d.day)
             started, ended = workout.get("start"), workout.get("end")
-            if isinstance(started, (int, float)) and isinstance(ended, (int, float)):
-                s = datetime.fromtimestamp(started / 1000)
-                e = datetime.fromtimestamp(ended / 1000)
+            s: datetime | date
+            e: datetime | date
+            if (
+                isinstance(started, (int, float))
+                and isinstance(ended, (int, float))
+                and ended > started
+            ):
+                # HA requires timezone-aware datetimes for timed events
+                s = dt_util.as_local(dt_util.utc_from_timestamp(started / 1000))
+                e = dt_util.as_local(dt_util.utc_from_timestamp(ended / 1000))
             else:
-                s, e = base, base + timedelta(days=1)
+                # no times recorded: all-day event
+                s, e = d, d + timedelta(days=1)
             sets = sum(len(e_.get("sets") or []) for e_ in workout.get("entries") or [])
             events.append(
                 CalendarEvent(
@@ -133,7 +134,7 @@ class WorkoutHistoryCalendar(CoordinatorEntity[OpenGymDataCoordinator], Calendar
                     end=e,
                     summary=workout.get("name") or "Workout",
                     description=(
-                        f"{sets} Saetze - {workout.get('vol', 0):.0f} {state.unit} Volumen"
+                        f"{sets} Saetze - {workout.get('vol') or 0:.0f} {state.unit} Volumen"
                     ),
                 )
             )
@@ -144,7 +145,7 @@ class WorkoutHistoryCalendar(CoordinatorEntity[OpenGymDataCoordinator], Calendar
         state = self.coordinator.data
         if state is None:
             return None
-        today = datetime.combine(date.today(), datetime.min.time())
+        today = dt_util.start_of_local_day()
         events = self._events(state, today, today + timedelta(days=1))
         return events[-1] if events else None
 
