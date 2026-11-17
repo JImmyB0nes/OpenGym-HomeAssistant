@@ -78,6 +78,15 @@ class TestPlanEdits(unittest.TestCase):
         s = logic.set_weighin(s, "2026-11-10", 79.9, "kg")
         self.assertEqual(s["bodyweight"][1]["w"], 79.9)
 
+    def test_weighin_keeps_document_unit(self):
+        """A lb weigh-in on a kg profile converts; the document unit stays kg."""
+        s = logic.set_weighin({"unit": "kg", "bodyweight": []}, "2026-11-14", 176.0, "lb")
+        self.assertEqual(s["unit"], "kg")
+        self.assertAlmostEqual(s["bodyweight"][0]["w"], 79.8)
+        # same unit both ways is identity
+        s = logic.set_weighin(s, "2026-11-15", 79.5, "kg")
+        self.assertEqual(s["bodyweight"][1]["w"], 79.5)
+
     def test_edits_reapply_on_fresh_document(self):
         """Conflict retry re-runs the same edit on the server's newer copy."""
         server = _state()

@@ -547,15 +547,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
     entry.runtime_data = runtime
 
     # One-time: create the webhook connection in openGym (opt-in via config flow).
+    # AUTO_WEBHOOK is cleared in every success path — otherwise a connect that
+    # answers without a secret would run again on every reload and create a
+    # duplicate connection in openGym.
     if entry.data.get(CONF_AUTO_WEBHOOK):
         try:
             secret = await runtime.async_connect_webhook()
-            if secret:
-                hass.config_entries.async_update_entry(
-                    entry,
-                    data={**entry.data, CONF_SECRET: secret, CONF_AUTO_WEBHOOK: False},
-                )
-                _LOGGER.info("openGym: webhook connection created in openGym")
+            hass.config_entries.async_update_entry(
+                entry,
+                data={**entry.data, CONF_SECRET: secret or "", CONF_AUTO_WEBHOOK: False},
+            )
+            _LOGGER.info("openGym: webhook connection created in openGym")
         except (OpenGymError, NoURLAvailableError) as err:
             _LOGGER.warning(
                 "openGym: could not create the webhook connection automatically (%s); "
