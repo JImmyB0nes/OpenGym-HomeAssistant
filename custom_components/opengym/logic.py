@@ -143,16 +143,16 @@ def add_day_note(
 
 
 def set_weighin(
-    state: dict[str, Any], day: str, weight: float, unit: str
+    state: dict[str, Any], day: str, weight: float, unit: str | None = None
 ) -> dict[str, Any]:
     """Upsert the day's weigh-in (`bodyweight[].w`).
 
-    The value is stored in the unit the document uses (the app's setting);
-    a `unit` differing from it is converted, never written as the document's
-    new unit — one weigh-in must not flip the unit of the whole profile.
+    openGym stores weigh-ins in the profile's unit (`state.unit`). A weight
+    given in the other unit is converted; the profile's unit is never
+    changed (that is an app setting, not part of a weigh-in).
     """
-    doc_unit = state.get("unit") if state.get("unit") in ("kg", "lb") else unit
-    value = convert_weight(weight, unit, doc_unit)
+    profile_unit = "lb" if state.get("unit") == "lb" else "kg"
+    value = convert_weight(float(weight), unit or profile_unit, profile_unit)
     entries = [dict(b) for b in (state.get("bodyweight") or []) if isinstance(b, dict)]
     existing = next((b for b in entries if b.get("d") == day), None)
     if existing:
@@ -161,7 +161,6 @@ def set_weighin(
         entries.append({"d": day, "w": value})
     entries.sort(key=lambda b: b.get("d") or "")
     state["bodyweight"] = entries
-    state["unit"] = doc_unit
     return state
 
 

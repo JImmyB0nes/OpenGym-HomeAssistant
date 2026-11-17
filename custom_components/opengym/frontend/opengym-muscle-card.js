@@ -44,7 +44,7 @@
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.11.0";
+const CARD_VERSION = "0.11.1";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
@@ -1496,6 +1496,14 @@ class OpenGymProgressCard extends OpenGymBase {
       this._error = err?.message || String(err);
     }
     this._paintProgress();
+  }
+
+  /** The 1RM sensor is "unknown" until the first weighted set — that is not an outage. */
+  _checkEntity() {
+    const st = this._hass.states[this._cfg.entity];
+    if (!st) { this._paint(this._stateCard("missing", "mdi:help-circle-outline")); return null; }
+    if (st.state === "unavailable") { this._paint(this._stateCard("unavailable", "mdi:cloud-off-outline")); return null; }
+    return st;
   }
 
   _render() {

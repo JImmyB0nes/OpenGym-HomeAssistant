@@ -275,7 +275,7 @@ The integration ships four cards (`custom:opengym-muscle-card`, `custom:opengym-
   lovelace:
     mode: yaml
     resources:
-      - url: /opengym/opengym-muscle-card.js?v=0.11.0
+      - url: /opengym/opengym-muscle-card.js?v=0.11.1
         type: module
   ```
 
@@ -513,8 +513,9 @@ The **openGym** device offers in the automation editor:
 ```yaml
 action: opengym.log_weighin
 data:
-  weight: 80.4        # kg or lb, depending on unit
-  unit: kg
+  weight: 80.4
+  unit: kg            # optional; default: your openGym unit. Another unit is
+                      # converted – openGym's unit setting never changes
   date: "2026-11-13"  # optional, default: today
 
 action: opengym.trigger_test_event

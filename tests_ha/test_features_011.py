@@ -263,3 +263,63 @@ async def test_readme_entity_ids_exist(hass: HomeAssistant, aioclient_mock) -> N
     assert not missing, missing
     assert len(mentioned) > 30
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_review_fixes(hass: HomeAssistant, aioclient_mock, hass_ws_client) -> None:
+    """0.11.1: bugs found before going live."""
+    entry = await _setup(hass, aioclient_mock)
+    ids = _ids(hass, entry)
+    _accept_puts(aioclient_mock)
+    # weigh-in service without a unit: the profile's unit, never rewritten
+    await hass.services.async_call("opengym", "log_weighin", {"weight": 80.4}, blocking=True)
+    body = _last_put(aioclient_mock)["state"]
+    assert body["unit"] == "kg" and {"d": TODAY.isoformat(), "w": 80.4} in body["bodyweight"]
+    await hass.services.async_call("opengym", "log_weighin", {"weight": 176.5, "unit": "lb"}, blocking=True)
+    body = _last_put(aioclient_mock)["state"]
+    assert body["unit"] == "kg" and {"d": TODAY.isoformat(), "w": 80.1} in body["bodyweight"]
+    # websocket before data: a clean error instead of an AttributeError
+    coord = entry.runtime_data.coordinator
+    saved, coord.data = coord.data, None
+    client = await hass_ws_client(hass)
+    for i, msg in enumerate(({"type": "opengym:progress"}, {"type": "opengym:detail", "muscle": "chest"}), 1):
+        await client.send_json({"id": i, "entry_id": entry.entry_id, **msg})
+        res = await client.receive_json()
+        assert not res["success"] and res["error"]["code"] == "not_ready", res
+    coord.data = saved
+    # the rest-timer number marks where its value comes from
+    assert hass.states.get(ids["rest_duration"]).attributes["source"] == "opengym"
+    await hass.services.async_call("number", "set_value", {"entity_id": ids["rest_duration"], "value": 60}, blocking=True)
+    assert hass.states.get(ids["rest_duration"]).attributes["source"] == "home_assistant"
+    # weekly counters are measurements (they reset every Monday)
+    assert hass.states.get(ids["week_workouts"]).attributes["state_class"] == "measurement"
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_weight_sentences_do_not_hijack(hass: HomeAssistant, aioclient_mock) -> None:
+    """Everyday commands must not be taken for a weigh-in."""
+    pytest.importorskip("hassil")
+    pytest.importorskip("home_assistant_intents")
+    from homeassistant.components import conversation
+    from homeassistant.core import Context
+
+    assert await async_setup_component(hass, "homeassistant", {})
+    assert await async_setup_component(hass, "conversation", {})
+    assert await async_setup_component(hass, "intent", {})
+    entry = await _setup(hass, aioclient_mock)
+    await hass.async_block_till_done()
+    _accept_puts(aioclient_mock)
+    n_puts = len([c for c in aioclient_mock.mock_calls if c[0] == "PUT"])
+    for text, lang in (("Notiere Milch", "de"), ("Trag den Termin ein", "de"), ("Speichere die Szene", "de"),
+                       ("record a video", "en"), ("save the date", "en"), ("log the temperature", "en")):
+        result = await conversation.async_converse(hass, text, None, Context(), language=lang)
+        speech = result.response.speech.get("plain", {}).get("speech", "")
+        assert "weight" not in speech.lower() and "gewicht" not in speech.lower(), (text, speech)
+    assert len([c for c in aioclient_mock.mock_calls if c[0] == "PUT"]) == n_puts
+    # the real thing still works
+    result = await conversation.async_converse(hass, "Trag mein Gewicht von 80 Kilo ein", None, Context(), language="de")
+    assert result.response.speech["plain"]["speech"].startswith("80 kg eingetragen")
+    result = await conversation.async_converse(hass, "log my weight as 80.4", None, Context(), language="en")
+    assert result.response.speech["plain"]["speech"].startswith("Logged 80.4 kg")
+    assert await hass.config_entries.async_unload(entry.entry_id)

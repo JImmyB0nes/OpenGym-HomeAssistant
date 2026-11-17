@@ -30,6 +30,12 @@ async def async_setup_entry(
     async_add_entities([OpenGymUpdateEntity(coordinator, entry)])
 
 
+def _plain_version(value: object) -> str:
+    """"v1.2.3" (release tag) and "1.2.3" (instance) compare as the same version."""
+    text = str(value).strip()
+    return text[1:] if text[:1] in ("v", "V") and text[1:2].isdigit() else text
+
+
 class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntity):
     """Compares the instance version with the latest openGym release."""
 
@@ -63,11 +69,11 @@ class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntit
                 f"{base}/api/health", timeout=aiohttp.ClientTimeout(total=10)
             ) as resp:
                 if resp.status == 200:
-                    health = await resp.json()
-                    version = health.get("version")
+                    health = await resp.json(content_type=None)
+                    version = health.get("version") if isinstance(health, dict) else None
                     if version:
-                        self._installed = str(version)
-        except (aiohttp.ClientError, TimeoutError):
+                        self._installed = _plain_version(version)
+        except (aiohttp.ClientError, TimeoutError, ValueError):
             pass
 
         try:
@@ -77,10 +83,11 @@ class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntit
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 if resp.status == 200:
-                    latest = await resp.json()
-                    self._latest = latest.get("tag_name")
-                    self._release_notes_body = latest.get("body")
-        except (aiohttp.ClientError, TimeoutError) as err:
+                    latest = await resp.json(content_type=None)
+                    if isinstance(latest, dict) and latest.get("tag_name"):
+                        self._latest = _plain_version(latest["tag_name"])
+                        self._release_notes_body = latest.get("body")
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             _LOGGER.debug("openGym: upstream release check failed (%s)", err)
 
     @property

@@ -164,7 +164,9 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             # resets every Monday — a measurement, not a growing counter
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif kind == "count":
-            self._attr_state_class = SensorStateClass.TOTAL
+            # resets every Monday like week_volume; TOTAL without last_reset
+            # would book the drop as negative workouts in the statistics
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif kind == "streak":
             self._attr_native_unit_of_measurement = UnitOfTime.DAYS
             self._attr_icon = "mdi:fire"
