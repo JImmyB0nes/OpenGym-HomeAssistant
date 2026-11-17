@@ -9,13 +9,13 @@ after a HACS update instead of silently running an old card.
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, INTEGRATION_VERSION, MAP_SLUGS
 
@@ -75,7 +75,7 @@ def ws_detail(
     if muscle not in MAP_SLUGS:
         connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "unknown muscle")
         return
-    connection.send_result(msg["id"], state.muscle_detail(muscle, date.today()))
+    connection.send_result(msg["id"], state.muscle_detail(muscle, dt_util.now().date()))
 
 
 def _resolve_entry(hass: HomeAssistant, entry_id: str | None, entity_id: str | None):
@@ -120,7 +120,7 @@ def ws_progress(
     if coordinator.data is None:
         connection.send_error(msg["id"], ERR_NOT_READY, "openGym data not ready")
         return
-    result = coordinator.data.progress(date.today(), msg["days"], msg["exercises"])
+    result = coordinator.data.progress(dt_util.now().date(), msg["days"], msg["exercises"])
     result["entry_id"] = entry.entry_id
     result["version"] = INTEGRATION_VERSION
     connection.send_result(msg["id"], result)

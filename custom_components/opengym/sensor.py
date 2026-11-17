@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -185,7 +185,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
     def icon(self) -> str | None:
         if self._kind == "next":
             state = self.coordinator.data
-            nxt = state.next_session(date.today()) if state else None
+            nxt = state.next_session(dt_util.now().date()) if state else None
             return logic.routine_icon(nxt[0].get("emoji")) if nxt else "mdi:calendar-blank"
         return super().icon
 
@@ -203,7 +203,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         state: OpenGymState | None = self.coordinator.data
         if state is None:
             return None
-        today = date.today()
+        today = dt_util.now().date()
         if self._kind == "workout":
             w = state.last_workout()
             if not w:
@@ -239,7 +239,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return state.goal_weight()
         if self._kind == "days_since":
             day = state.last_workout_day()
-            return (date.today() - day).days if day else None
+            return (dt_util.now().date() - day).days if day else None
         if self._kind == "prs":
             return len(state.pr_map())
         if self._kind == "hr":
@@ -251,12 +251,12 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "custom_ex":
             return state.custom_ex_count()
         if self._kind == "balance":
-            return round(sum(state.week_sets(date.today()).values()), 1)
+            return round(sum(state.week_sets(dt_util.now().date()).values()), 1)
         if self._kind == "fatigue":
-            values = state.fatigue(date.today())
+            values = state.fatigue(dt_util.now().date())
             return sum(1 for v in values.values() if v > 0.5)
         if self._kind == "history":
-            return sum(1 for w in state.week_history(date.today()) if w["workouts"])
+            return sum(1 for w in state.week_history(dt_util.now().date()) if w["workouts"])
         return None
 
     @property
@@ -275,10 +275,10 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 ),
             }
         if self._kind == "week_streak":
-            info = state.week_streak(date.today())
+            info = state.week_streak(dt_util.now().date())
             return {"best": info["best"], "freezes": info["freezes"], "this_week_done": info["this_week_done"]}
         if self._kind == "next":
-            nxt = state.next_workout(date.today())
+            nxt = state.next_workout(dt_util.now().date())
             if nxt:
                 # `exercises` stays the count (pre-0.10 automations); details below.
                 return {
@@ -336,7 +336,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 if ex.get("n")
             }
         if self._kind == "balance":
-            today = date.today()
+            today = dt_util.now().date()
             targets = state.muscle_targets()
             fatigue_map = state.fatigue(today)
             goal = state.goal_weight()
@@ -371,7 +371,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 "unit": state.unit,
             }
         if self._kind == "fatigue":
-            today = date.today()
+            today = dt_util.now().date()
             fatigue_map = state.fatigue(today)
             return {
                 m: {
@@ -382,7 +382,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                 for m, v in sorted(fatigue_map.items(), key=lambda kv: -kv[1])
             }
         if self._kind == "history":
-            return {"weeks": state.week_history(date.today())}
+            return {"weeks": state.week_history(dt_util.now().date())}
         return {}
 
 
@@ -411,7 +411,7 @@ class MuscleDaysSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         state = self.coordinator.data
         if state is None:
             return None
-        return state.muscle_days(date.today()).get(self._muscle)
+        return state.muscle_days(dt_util.now().date()).get(self._muscle)
 
 
 class _Base(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
@@ -449,7 +449,7 @@ class MuscleWeeklySetsSensor(_Base):
         state = self.coordinator.data
         if state is None:
             return None
-        sets = state.week_sets(date.today())
+        sets = state.week_sets(dt_util.now().date())
         return round(sum(sets.get(s, 0) for s in self._slugs), 1)
 
     @property
@@ -457,7 +457,7 @@ class MuscleWeeklySetsSensor(_Base):
         state = self.coordinator.data
         if state is None:
             return {}
-        today = date.today()
+        today = dt_util.now().date()
         last = state.week_sets(today, -1)
         target = state.muscle_targets().get(self._muscle)
         return {
