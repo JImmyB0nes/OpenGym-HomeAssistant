@@ -546,14 +546,19 @@ class OpenGymState:
         done: dict[str, dict[str, Any]] = {}
         for workout in self.workouts:
             day = _day(workout.get("d"))
-            if day:
-                done[day.isoformat()] = {
-                    "name": workout.get("name") or "Workout",
-                    "volume": workout.get("vol"),
-                    "sets": sum(
-                        len(e.get("sets") or []) for e in workout.get("entries") or []
-                    ),
-                }
+            if not day:
+                continue
+            name = workout.get("name") or "Workout"
+            vol = workout.get("vol") if isinstance(workout.get("vol"), (int, float)) else 0
+            sets = sum(len(e.get("sets") or []) for e in workout.get("entries") or [])
+            if (prev := done.get(day.isoformat())) is None:
+                done[day.isoformat()] = {"name": name, "volume": workout.get("vol"), "sets": sets}
+            else:
+                # several workouts on one day: one row, everything added up
+                if name not in prev["name"].split(" + "):
+                    prev["name"] = f"{prev['name']} + {name}"
+                prev["volume"] = (prev["volume"] or 0) + vol
+                prev["sets"] += sets
         out = []
         for offset in range(days):
             day = self.week_start(today) + timedelta(days=offset)

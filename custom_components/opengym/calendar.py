@@ -149,7 +149,9 @@ class WorkoutHistoryCalendar(CoordinatorEntity[OpenGymDataCoordinator], Calendar
                     end=e,
                     summary=workout.get("name") or "Workout",
                     description=(
-                        f"{sets} Saetze - {workout.get('vol') or 0:.0f} {state.unit} Volumen"
+                        f"{sets} Sätze · {workout.get('vol') or 0:.0f} {state.unit} Volumen"
+                        if str(state.lang).lower().startswith("de")
+                        else f"{sets} sets · {workout.get('vol') or 0:.0f} {state.unit} volume"
                     ),
                 )
             )
