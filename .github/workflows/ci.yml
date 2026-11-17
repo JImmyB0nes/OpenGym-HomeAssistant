@@ -57,6 +57,7 @@ jobs:
         run: |
           pip install -r tests_ha/requirements.txt
           # Assist end-to-end test: the exact hassil/intents versions this HA core pins
-          pip install $(python -c "import json, homeassistant.components.conversation as c, pathlib; print(' '.join(json.loads((pathlib.Path(c.__file__).parent / 'manifest.json').read_text())['requirements']))")
+          # (read the manifest without importing conversation, which needs hassil itself)
+          pip install $(python -c "import importlib.util, json, pathlib; ha = pathlib.Path(importlib.util.find_spec('homeassistant').origin).parent; print(' '.join(json.loads((ha / 'components/conversation/manifest.json').read_text())['requirements']))")
       - name: Run Home Assistant tests
         run: pytest tests_ha -q -p no:cacheprovider
