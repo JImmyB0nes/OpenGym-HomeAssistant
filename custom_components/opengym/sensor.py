@@ -158,8 +158,11 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         elif kind == "history":
             self._attr_icon = "mdi:grid"
             self._attr_native_unit_of_measurement = "wk"
-        elif kind in ("volume", "total"):
+        elif kind == "total":
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif kind == "volume":
+            # resets every Monday — a measurement, not a growing counter
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif kind == "count":
             self._attr_state_class = SensorStateClass.TOTAL
         elif kind == "streak":

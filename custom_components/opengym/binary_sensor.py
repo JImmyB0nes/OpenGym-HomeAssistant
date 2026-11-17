@@ -114,8 +114,8 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
             **attrs,
             "name": presence.get("name"),
             # kept from 0.9: "x/y" strings
-            "exercise": f"{presence.get('exIdx', 0) + 1}/{presence.get('exTotal', 0)}",
-            "sets": f"{presence.get('setsDone', 0)}/{presence.get('setsTotal', 0)}",
+            "exercise": f"{(presence.get('exIdx') or 0) + 1}/{presence.get('exTotal') or 0}",
+            "sets": f"{presence.get('setsDone') or 0}/{presence.get('setsTotal') or 0}",
             **progress,
             "started_at": _iso_ms(presence.get("startedAt")),
             "updated_at": _iso_ms(presence.get("updatedAt")),

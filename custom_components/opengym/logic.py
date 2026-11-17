@@ -145,16 +145,23 @@ def add_day_note(
 def set_weighin(
     state: dict[str, Any], day: str, weight: float, unit: str
 ) -> dict[str, Any]:
-    """Upsert the day's weigh-in (`bodyweight[].w`)."""
+    """Upsert the day's weigh-in (`bodyweight[].w`).
+
+    The value is stored in the unit the document uses (the app's setting);
+    a `unit` differing from it is converted, never written as the document's
+    new unit — one weigh-in must not flip the unit of the whole profile.
+    """
+    doc_unit = state.get("unit") if state.get("unit") in ("kg", "lb") else unit
+    value = convert_weight(weight, unit, doc_unit)
     entries = [dict(b) for b in (state.get("bodyweight") or []) if isinstance(b, dict)]
     existing = next((b for b in entries if b.get("d") == day), None)
     if existing:
-        existing["w"] = weight
+        existing["w"] = value
     else:
-        entries.append({"d": day, "w": weight})
+        entries.append({"d": day, "w": value})
     entries.sort(key=lambda b: b.get("d") or "")
     state["bodyweight"] = entries
-    state["unit"] = unit
+    state["unit"] = doc_unit
     return state
 
 
