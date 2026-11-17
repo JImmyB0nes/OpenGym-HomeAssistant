@@ -14,6 +14,7 @@ IntegrationConnection) and the app's own readers:
 from __future__ import annotations
 
 import copy
+import re
 from datetime import date, timedelta
 from typing import Any
 
@@ -67,6 +68,33 @@ def clear_day_override(state: dict[str, Any], day: date) -> dict[str, Any]:
     """Drop a dayPlan override so the weekly plan applies again."""
     plan = dict(state.get("dayPlan") or {})
     plan.pop(day.isoformat(), None)
+    state["dayPlan"] = plan
+    return state
+
+
+def weekly_routine_id(state: dict[str, Any], day: date) -> str | None:
+    """Routine id the weekly plan (`week`, no dayPlan override) puts on `day`."""
+    week = state.get("week") or {}
+    rid = week.get(str((day.weekday() + 1) % 7)) if isinstance(week, dict) else None
+    if isinstance(rid, list):
+        rid = rid[0] if rid else None
+    if not rid or rid == "rest":
+        return None
+    return str(rid) if str(rid) in _routines(state) else None
+
+
+def set_day_routine(state: dict[str, Any], day: date, routine_id: str | None) -> dict[str, Any]:
+    """Plan `routine_id` (None = rest) on `day`.
+
+    Matching the weekly plan drops the override instead of writing one, so
+    picking "what was planned anyway" leaves the document as the app would.
+    """
+    if routine_id is not None and str(routine_id) not in _routines(state):
+        raise PlanEditError("unknown_routine", routine=routine_id)
+    if weekly_routine_id(state, day) == (str(routine_id) if routine_id else None):
+        return clear_day_override(state, day)
+    plan = dict(state.get("dayPlan") or {})
+    plan[day.isoformat()] = str(routine_id) if routine_id else "rest"
     state["dayPlan"] = plan
     return state
 
@@ -632,3 +660,211 @@ def week_streak(workout_days: list[date], today: date, week_start: int = 0) -> d
         best = max(best, run)
         wk += timedelta(weeks=1)
     return {"current": run, "best": best, "freezes": freezes, "this_week_done": cur in trained}
+
+
+# --- logbook (webhook events as readable lines) -----------------------------------
+
+_LOGBOOK_TEXT = {
+    "en": {
+        "finished": "finished {name}",
+        "finished_stats": "finished {name} ({stats})",
+        "volume": "{volume} {unit} volume",
+        "sets": "{n} sets",
+        "minutes": "{n} min",
+        "pr_one": "set a new personal record: {records}",
+        "pr_many": "set {n} new personal records: {records}",
+        "weighin": "logged a weigh-in: {weight} {unit}",
+        "test": " (test)",
+        "workout": "a workout",
+    },
+    "de": {
+        "finished": "hat {name} beendet",
+        "finished_stats": "hat {name} beendet ({stats})",
+        "volume": "{volume} {unit} Volumen",
+        "sets": "{n} Sätze",
+        "minutes": "{n} min",
+        "pr_one": "hat einen neuen Rekord aufgestellt: {records}",
+        "pr_many": "hat {n} neue Rekorde aufgestellt: {records}",
+        "weighin": "hat eine Wägung eingetragen: {weight} {unit}",
+        "test": " (Test)",
+        "workout": "ein Workout",
+    },
+}
+
+
+def _lang(lang: str | None) -> str:
+    return "de" if str(lang or "").lower().startswith("de") else "en"
+
+
+def _fmt_num(value: Any, lang: str) -> str:
+    """1234.5 -> "1,234.5" (en) / "1.234,5" (de); integers without decimals."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return str(value)
+    text = f"{value:,.1f}".rstrip("0").rstrip(".")
+    if lang == "de":
+        text = text.replace(",", "\0").replace(".", ",").replace("\0", ".")
+    return text
+
+
+def logbook_message(event_type: str, event_data: dict[str, Any] | None, lang: str | None = "en") -> str:
+    """One logbook line for an openGym webhook event (payload v1, docs/INTEGRATIONS.md)."""
+    t = _LOGBOOK_TEXT[_lang(lang)]
+    lang = _lang(lang)
+    data = (event_data or {}).get("data") or {}
+    suffix = t["test"] if (event_data or {}).get("test") else ""
+    if event_type == "workout.finished":
+        workout = data.get("workout") or {}
+        name = workout.get("name") or t["workout"]
+        totals = workout.get("totals") or {}
+        unit = workout.get("unit") or "kg"
+        stats = []
+        if isinstance(totals.get("volume"), (int, float)) and totals["volume"] > 0:
+            stats.append(t["volume"].format(volume=_fmt_num(totals["volume"], lang), unit=unit))
+        if isinstance(totals.get("sets"), int) and totals["sets"] > 0:
+            stats.append(t["sets"].format(n=totals["sets"]))
+        if isinstance(workout.get("durationMin"), (int, float)) and workout["durationMin"] > 0:
+            stats.append(t["minutes"].format(n=int(workout["durationMin"])))
+        key = "finished_stats" if stats else "finished"
+        return t[key].format(name=name, stats=", ".join(stats)) + suffix
+    if event_type == "workout.pr":
+        unit = data.get("unit") or "kg"
+        parts = []
+        for record in data.get("records") or []:
+            if not isinstance(record, dict):
+                continue
+            label = str(record.get("name") or record.get("id") or "?")
+            if isinstance(record.get("weight"), (int, float)):
+                label += f" {_fmt_num(record['weight'], lang)} {unit}"
+                if isinstance(record.get("reps"), (int, float)):
+                    label += f" × {int(record['reps'])}"
+            parts.append(label)
+        if not parts:
+            parts.append(str((data.get("workout") or {}).get("name") or t["workout"]))
+        key = "pr_one" if len(parts) == 1 else "pr_many"
+        return t[key].format(n=len(parts), records=", ".join(parts[:5])) + suffix
+    if event_type == "weighin.logged":
+        weighin = data.get("weighin") or {}
+        return t["weighin"].format(
+            weight=_fmt_num(weighin.get("weight"), lang), unit=weighin.get("unit") or "kg"
+        ) + suffix
+    return event_type + suffix
+
+
+# --- Assist (voice) answers -----------------------------------------------------
+
+_SPEECH = {
+    "en": {
+        "no_entry": "openGym is not set up or not reachable right now.",
+        "next_today": "Your next workout is {name}, today.",
+        "next_tomorrow": "Your next workout is {name}, tomorrow.",
+        "next_in": "Your next workout is {name}, in {n} days on {weekday}.",
+        "next_none": "No workout is planned for the next two weeks.",
+        "next_exercises": " {n} exercises, {sets} sets.",
+        "week": "This week: {n} workouts, {volume} {unit} volume.",
+        "week_one": "This week: 1 workout, {volume} {unit} volume.",
+        "week_none": "No workout yet this week.",
+        "streak": " Week streak: {n}.",
+        "weighin": "Logged {weight} {unit}.",
+        "weighin_goal": "Logged {weight} {unit}. {delta} {unit} to your goal.",
+        "weighin_at_goal": "Logged {weight} {unit}. You are at your goal weight.",
+        "bad_weight": "I did not understand the weight.",
+        "rest_started": "Rest timer started for {seconds} seconds.",
+        "rest_cancelled": "Rest timer stopped.",
+        "last_none": "You have not logged a workout yet.",
+        "last": "Your last workout was {name} {when}.",
+        "today": "today",
+        "yesterday": "yesterday",
+        "days_ago": "{n} days ago",
+        "weekdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    },
+    "de": {
+        "no_entry": "openGym ist nicht eingerichtet oder gerade nicht erreichbar.",
+        "next_today": "Dein nächstes Training ist {name}, heute.",
+        "next_tomorrow": "Dein nächstes Training ist {name}, morgen.",
+        "next_in": "Dein nächstes Training ist {name}, in {n} Tagen am {weekday}.",
+        "next_none": "In den nächsten zwei Wochen ist kein Training geplant.",
+        "next_exercises": " {n} Übungen, {sets} Sätze.",
+        "week": "Diese Woche: {n} Trainings, {volume} {unit} Volumen.",
+        "week_one": "Diese Woche: 1 Training, {volume} {unit} Volumen.",
+        "week_none": "Diese Woche hast du noch nicht trainiert.",
+        "streak": " Wochenserie: {n}.",
+        "weighin": "{weight} {unit} eingetragen.",
+        "weighin_goal": "{weight} {unit} eingetragen. Noch {delta} {unit} bis zum Ziel.",
+        "weighin_at_goal": "{weight} {unit} eingetragen. Du hast dein Zielgewicht erreicht.",
+        "bad_weight": "Das Gewicht habe ich nicht verstanden.",
+        "rest_started": "Pausentimer für {seconds} Sekunden gestartet.",
+        "rest_cancelled": "Pausentimer gestoppt.",
+        "last_none": "Du hast noch kein Training eingetragen.",
+        "last": "Dein letztes Training war {name}, {when}.",
+        "today": "heute",
+        "yesterday": "gestern",
+        "days_ago": "vor {n} Tagen",
+        "weekdays": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
+    },
+}
+
+
+def speech(key: str, lang: str | None, **kwargs: Any) -> str:
+    """A voice answer in German or English (everything else gets English)."""
+    lang = _lang(lang)
+    fmt = {k: (_fmt_num(v, lang) if isinstance(v, float) else v) for k, v in kwargs.items()}
+    return _SPEECH[lang][key].format(**fmt)
+
+
+def speech_next(nxt: dict[str, Any] | None, today: date, lang: str | None) -> str:
+    """'Your next workout is Push, tomorrow. 5 exercises, 18 sets.'"""
+    if not nxt:
+        return speech("next_none", lang)
+    day = date.fromisoformat(nxt["date"])
+    n = (day - today).days
+    name = nxt.get("name") or "Workout"
+    if n <= 0:
+        text = speech("next_today", lang, name=name)
+    elif n == 1:
+        text = speech("next_tomorrow", lang, name=name)
+    else:
+        weekday = _SPEECH[_lang(lang)]["weekdays"][day.weekday()]
+        text = speech("next_in", lang, name=name, n=n, weekday=weekday)
+    exercises = nxt.get("exercises") or []
+    if exercises:
+        text += speech("next_exercises", lang, n=len(exercises), sets=nxt.get("total_sets") or 0)
+    return text
+
+
+def speech_days_ago(n: int, lang: str | None) -> str:
+    if n <= 0:
+        return speech("today", lang)
+    if n == 1:
+        return speech("yesterday", lang)
+    return speech("days_ago", lang, n=n)
+
+
+LB_PER_KG = 2.20462
+
+
+def convert_weight(value: float, from_unit: str, to_unit: str) -> float:
+    """kg <-> lb, rounded to 0.1 like openGym stores weigh-ins."""
+    if from_unit == to_unit:
+        return round(value, 1)
+    if from_unit == "lb" and to_unit == "kg":
+        return round(value / LB_PER_KG, 1)
+    if from_unit == "kg" and to_unit == "lb":
+        return round(value * LB_PER_KG, 1)
+    return round(value, 1)
+
+
+def parse_spoken_number(value: Any) -> float | None:
+    """'80,4' / '80.4' / '80 komma 4' / '80 point 4' / '80 kilo' -> 80.4."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    text = str(value or "").strip().lower()
+    for word in (" komma ", " comma ", " point ", " punkt "):
+        text = text.replace(word, ".")
+    text = text.replace(",", ".")
+    match = re.search(r"\d+(?:\.\d+)?", text.replace(" ", ""))
+    if not match:
+        return None
+    try:
+        return float(match.group(0))
+    except ValueError:  # pragma: no cover - the regex only matches numbers
+        return None

@@ -42,11 +42,15 @@
         "data": {
           "poll_interval": "Poll-Intervall (Minuten)",
           "rev_interval": "Schnellprüfung (Sekunden, 0 = aus)",
-          "max_heart_rate": "Maximale Herzfrequenz (bpm, für HF-Zonen)"
+          "max_heart_rate": "Maximale Herzfrequenz (bpm, für HF-Zonen)",
+          "assist_sentences": "Sprachbefehle (Assist)",
+          "import_statistics": "Verlauf in die Langzeitstatistik übernehmen"
         },
         "data_description": {
           "rev_interval": "Prüft openGyms Revision (wenige Bytes) und Live-Daten; das ganze Dokument wird nur bei Änderungen geladen.",
-          "max_heart_rate": "Zonen 1–5 = 50/60/70/80/90 % dieses Werts."
+          "max_heart_rate": "Zonen 1–5 = 50/60/70/80/90 % dieses Werts.",
+          "assist_sentences": "Legt deutsche und englische Sätze in config/custom_sentences/ an (z. B. „Wann ist mein nächstes Training?“, „Trag 80,4 Kilo ein“). Ausschalten entfernt sie wieder.",
+          "import_statistics": "Körpergewicht, Volumen pro Trainingstag und geschätztes 1RM deiner meistgemachten Übungen – rückwirkend bis zum ersten Training, für Statistik-Diagramme."
         }
       }
     }
@@ -60,7 +64,7 @@
         "name": "Letzter Personal Record"
       },
       "last_weighin": {
-        "name": "Letzte Wiegewägung"
+        "name": "Letzte Wägung"
       },
       "week_volume": {
         "name": "Volumen diese Woche"
@@ -301,6 +305,19 @@
       },
       "coach_reject": {
         "name": "Coach-Vorschlag ablehnen"
+      }
+    },
+    "number": {
+      "rest_duration": {
+        "name": "Pausentimer-Dauer"
+      }
+    },
+    "select": {
+      "today_routine": {
+        "name": "Heutige Routine",
+        "state": {
+          "rest": "Ruhetag"
+        }
       }
     }
   },
@@ -546,6 +563,9 @@
     },
     "coach_use_app": {
       "message": "Dieser Vorschlag ändert die Planstruktur; bitte in der openGym-App annehmen."
+    },
+    "plan_unknown_routine": {
+      "message": "Unbekannte Routine: {routine}"
     }
   }
 }

@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .device_info import open_gym_device_info
+from .device_info import open_gym_device_info, suggested_entity_id
 from .coordinator import OpenGymDataCoordinator
 
 LOOKAHEAD_DAYS = 30
@@ -36,12 +36,12 @@ class TrainingPlanCalendar(CoordinatorEntity[OpenGymDataCoordinator], CalendarEn
 
     _attr_has_entity_name = True
     _attr_translation_key = "training_plan"
-    _attr_name = "Training plan"
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_plan"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "calendar", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -104,12 +104,12 @@ class WorkoutHistoryCalendar(CoordinatorEntity[OpenGymDataCoordinator], Calendar
 
     _attr_has_entity_name = True
     _attr_translation_key = "workout_history"
-    _attr_name = "Workout history"
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_workout_history"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "calendar", self._attr_translation_key)
 
     @property
     def available(self) -> bool:

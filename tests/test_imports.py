@@ -26,9 +26,10 @@ class TestImports(unittest.TestCase):
     """Every module of the integration must import without exceptions."""
 
     MODULES = (
-        "const", "logic", "api", "security", "device_info", "coordinator",
+        "const", "logic", "api", "security", "device_info", "state", "coordinator",
         "websocket_api", "sensor", "binary_sensor", "calendar", "update",
-        "button", "repairs",
+        "button", "number", "select", "repairs", "statistics", "sentences",
+        "logbook", "intent",
         "device_trigger", "device_action", "diagnostics", "config_flow",
         "__init__",
     )
@@ -74,12 +75,13 @@ class TestImports(unittest.TestCase):
         const = sys.modules["homeassistant.const"]
         const.Platform = _enum(
             "Platform",
-            "SENSOR", "BINARY_SENSOR", "CALENDAR", "UPDATE", "BUTTON",
+            "SENSOR", "BINARY_SENSOR", "CALENDAR", "UPDATE", "BUTTON", "NUMBER", "SELECT",
             "DIAGNOSTICS", "DEVICE_TRIGGER", "DEVICE_ACTION",
         )
         const.UnitOfMass = type("UnitOfMass", (), {"KILOGRAMS": "kg", "POUNDS": "lb"})
         const.UnitOfTime = type("UnitOfTime", (), {"DAYS": "d", "SECONDS": "s"})
         const.PERCENTAGE = "%"
+        const.EntityCategory = _enum("EntityCategory", "CONFIG DIAGNOSTIC")
         const.EVENT_HOMEASSISTANT_START = "homeassistant_start"
         const.CONF_URL = "url"; const.CONF_DEVICE_ID = "device_id"
         const.CONF_DOMAIN = "domain"; const.CONF_PLATFORM = "platform"
@@ -170,6 +172,15 @@ class TestImports(unittest.TestCase):
             "MEASUREMENT": "measurement", "TOTAL": "total",
             "TOTAL_INCREASING": "total_increasing"})
 
+        num = _mod("homeassistant.components.number", ["RestoreNumber"])
+        num.NumberMode = _enum("NumberMode", "AUTO BOX SLIDER")
+        _mod("homeassistant.components.select", ["SelectEntity"])
+        it = _mod("homeassistant.helpers.intent", ["Intent", "IntentResponse"])
+        it.IntentHandler = type("IntentHandler", (), {})
+        it.async_register = lambda hass, handler: None
+        sys.modules["homeassistant.helpers"].intent = it
+        sys.modules["homeassistant.helpers"].config_validation = cv
+        sys.modules["homeassistant.core"].Event = type("Event", (), {})
         _mod("homeassistant.components.binary_sensor",
              ["BinarySensorDeviceClass", "BinarySensorEntity"])
         cal = _mod("homeassistant.components.calendar",

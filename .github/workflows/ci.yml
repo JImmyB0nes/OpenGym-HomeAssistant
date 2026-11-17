@@ -42,3 +42,21 @@ jobs:
         run: pip install pyyaml
       - name: Run test suite
         run: python -m unittest discover tests -v
+
+  tests-ha:
+    name: tests (Home Assistant core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tests_ha/requirements.txt
+      - name: Install deps
+        run: |
+          pip install -r tests_ha/requirements.txt
+          # Assist end-to-end test: the exact hassil/intents versions this HA core pins
+          pip install $(python -c "import json, homeassistant.components.conversation as c, pathlib; print(' '.join(json.loads((pathlib.Path(c.__file__).parent / 'manifest.json').read_text())['requirements']))")
+      - name: Run Home Assistant tests
+        run: pytest tests_ha -q -p no:cacheprovider

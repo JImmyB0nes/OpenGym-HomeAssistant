@@ -1,0 +1,62 @@
+# openGym – Assist-Sätze (Deutsch). Von der openGym-Integration verwaltet.
+language: "de"
+intents:
+  OpenGymNextWorkout:
+    data:
+      - sentences:
+          - "wann ist [mein|das] nächste[s] training"
+          - "wann [muss|soll] ich [wieder|das nächste mal] trainieren"
+          - "was ist [mein|das] nächste[s] (training|workout)"
+          - "was trainiere ich als nächstes"
+          - "was steht (heute|als nächstes) im trainingsplan"
+  OpenGymWeekSummary:
+    data:
+      - sentences:
+          - "wie oft habe ich diese woche trainiert"
+          - "wie (lief|läuft) [meine] trainingswoche"
+          - "wie viel habe ich diese woche (trainiert|gehoben)"
+          - "(trainings|workout)[ ](bilanz|zusammenfassung) [der|dieser] woche"
+  OpenGymLastWorkout:
+    data:
+      - sentences:
+          - "wann (habe|hab) ich (zuletzt|das letzte mal) trainiert"
+          - "wann war [mein|das] letzte[s] (training|workout)"
+  OpenGymLogWeight:
+    data:
+      - sentences:
+          - "(trag|trage) {weight} [{unit}] [(als gewicht|beim gewicht)] [in opengym] ein"
+          - "ich wiege [heute] {weight} [{unit}]"
+          - "[mein] gewicht [ist|heute] {weight} [{unit}]"
+          - "(notiere|speichere|logge) [mein gewicht] {weight} [{unit}]"
+  OpenGymStartRestTimer:
+    data:
+      - sentences:
+          - "(starte|start) [die|den] (pause|pausentimer|satzpause)"
+          - "(starte|start) [eine|die|den] (pause|pausentimer) [für|von] {seconds} sekunden"
+          - "(starte|start) [eine|die|den] (pause|pausentimer) [für|von] {minutes} minute[n]"
+          - "[(starte|start)] [eine|die|den] {seconds} sekunden pause"
+          - "[(starte|start)] [eine|die|den] {minutes} minute[n] pause"
+          - "pause [für|von] {seconds} sekunden"
+          - "pause [für|von] {minutes} minute[n]"
+  OpenGymCancelRestTimer:
+    data:
+      - sentences:
+          - "(stopp|stoppe|beende|abbrechen|brich) [die|den] (pause|pausentimer) [ab]"
+          - "pause (stoppen|beenden|abbrechen)"
+lists:
+  weight:
+    wildcard: true
+  unit:
+    values:
+      - in: "(kilo|kilogramm|kg)"
+        out: "kg"
+      - in: "(pfund|lbs)"
+        out: "lb"
+  seconds:
+    range:
+      from: 5
+      to: 600
+  minutes:
+    range:
+      from: 1
+      to: 10

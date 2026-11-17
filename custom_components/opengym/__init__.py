@@ -32,9 +32,11 @@ from .api import OpenGymApiClient, OpenGymConflictError, OpenGymError, OpenGymFe
 from .const import (
     ATTR_EVENT_ID,
     ATTR_EVENT_TYPE,
+    CONF_ASSIST_SENTENCES,
     CONF_AUTO_WEBHOOK,
     CONF_POLL_INTERVAL,
     CONF_REV_INTERVAL,
+    DEFAULT_ASSIST_SENTENCES,
     DEFAULT_REV_INTERVAL,
     SERVICE_ADD_DAY_NOTE,
     SERVICE_CANCEL_REST_TIMER,
@@ -57,6 +59,7 @@ from .const import (
 from .coordinator import OpenGymDataCoordinator
 from .frontend import async_schedule_frontend
 from .security import verify_signature
+from .sentences import async_install_sentences, async_remove_sentences
 from .websocket_api import async_setup_ws
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,6 +109,8 @@ PLATFORMS: list[Platform] = [
     Platform.CALENDAR,
     Platform.UPDATE,
     Platform.BUTTON,
+    Platform.NUMBER,
+    Platform.SELECT,
 ]
 
 # PUT /api/data conflict retries before giving up (409 hands back the fresh doc)
@@ -286,9 +291,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def handle_start_rest_timer(call: ServiceCall) -> None:
         """Have openGym push a rest-timer notification to your devices."""
         runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
-        state = runtime.coordinator.data
         seconds = logic.clamp_rest_seconds(
-            call.data.get("seconds"), state.rest_seconds() if state else None
+            call.data.get("seconds"), runtime.coordinator.rest_default_seconds()
         )
         try:
             await runtime.client.start_rest_timer(seconds, call.data.get("device_id"))
@@ -572,6 +576,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Assist: install (or, when switched off, remove) the voice sentences
+    if entry.options.get(CONF_ASSIST_SENTENCES, DEFAULT_ASSIST_SENTENCES):
+        hass.async_create_task(async_install_sentences(hass), name="openGym Assist sentences")
+    elif not _others_want_sentences(hass, entry):
+        hass.async_create_task(async_remove_sentences(hass), name="openGym Assist sentences")
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     # (1) fast tick: revision check + live presence / watch / Coach job
     runtime.coordinator.async_start_fast_tick(
@@ -583,6 +592,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
 async def _async_update_listener(hass: HomeAssistant, entry: OpenGymConfigEntry) -> None:
     """Reload when options (poll interval) changed."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _others_want_sentences(hass: HomeAssistant, entry: OpenGymConfigEntry) -> bool:
+    return any(
+        e.options.get(CONF_ASSIST_SENTENCES, DEFAULT_ASSIST_SENTENCES)
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    )
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> None:
+    """Last openGym entry removed: take the Assist sentences with it."""
+    if not _others_want_sentences(hass, entry):
+        await async_remove_sentences(hass)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> bool:

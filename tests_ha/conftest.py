@@ -10,7 +10,12 @@ _CC = str(Path(__file__).resolve().parents[1] / "custom_components")
 
 
 @pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations):
+def auto_enable_custom_integrations(request):
+    # The recorder must be set up before `hass` exists, so a test asking for
+    # `recorder_mock` gets it before `enable_custom_integrations` creates hass.
+    if "recorder_mock" in request.fixturenames:
+        request.getfixturevalue("recorder_mock")
+    request.getfixturevalue("enable_custom_integrations")
     # The plugin's own testing_config owns the `custom_components` package;
     # add this repository's folder to it so the loader finds `opengym`.
     import custom_components

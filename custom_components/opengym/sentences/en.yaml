@@ -1,0 +1,59 @@
+# openGym – Assist sentences (English). Managed by the openGym integration.
+language: "en"
+intents:
+  OpenGymNextWorkout:
+    data:
+      - sentences:
+          - "when is my next (workout|training|session)"
+          - "what is my next (workout|training|session)"
+          - "what am I training next"
+          - "what('s| is) on [my] (training plan|workout plan) [today]"
+  OpenGymWeekSummary:
+    data:
+      - sentences:
+          - "how (often|many times) did I (work out|train) this week"
+          - "how is my training week [going]"
+          - "how much did I (lift|train) this week"
+          - "[my] (weekly|week's) (workout|training) summary"
+  OpenGymLastWorkout:
+    data:
+      - sentences:
+          - "when did I last (work out|train)"
+          - "when was my last (workout|training|session)"
+  OpenGymLogWeight:
+    data:
+      - sentences:
+          - "(log|record|save) [my weight [as]] {weight} [{unit}] [in opengym]"
+          - "I weigh {weight} [{unit}] [today]"
+          - "my weight is {weight} [{unit}] [today]"
+  OpenGymStartRestTimer:
+    data:
+      - sentences:
+          - "start [the|my|a] rest [timer]"
+          - "start [the|my|a] rest [timer] (for|of) {seconds} seconds"
+          - "start [the|my|a] rest [timer] (for|of) {minutes} minute[s]"
+          - "[start] [a] {seconds} second[s] rest [timer]"
+          - "[start] [a] {minutes} minute[s] rest [timer]"
+          - "rest [for] {seconds} seconds"
+          - "rest [for] {minutes} minute[s]"
+  OpenGymCancelRestTimer:
+    data:
+      - sentences:
+          - "(stop|cancel|end) [the|my] rest [timer]"
+lists:
+  weight:
+    wildcard: true
+  unit:
+    values:
+      - in: "(kilo|kilos|kilogram|kilograms|kg)"
+        out: "kg"
+      - in: "(pound|pounds|lb|lbs)"
+        out: "lb"
+  seconds:
+    range:
+      from: 5
+      to: 600
+  minutes:
+    range:
+      from: 1
+      to: 10

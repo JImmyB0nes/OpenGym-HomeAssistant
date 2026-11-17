@@ -26,6 +26,7 @@ except ImportError:  # HA < 2024.4
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -33,6 +34,10 @@ from homeassistant.helpers.selector import (
 
 from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
 from .const import (
+    CONF_ASSIST_SENTENCES,
+    CONF_IMPORT_STATISTICS,
+    DEFAULT_ASSIST_SENTENCES,
+    DEFAULT_IMPORT_STATISTICS,
     CONF_AUTO_WEBHOOK,
     CONF_MAX_HEART_RATE,
     CONF_NAME,
@@ -266,6 +271,18 @@ class OpenGymOptionsFlow(OptionsFlow):
                             mode=NumberSelectorMode.BOX, unit_of_measurement="bpm",
                         )
                     ),
+                    vol.Optional(
+                        CONF_ASSIST_SENTENCES,
+                        default=self.config_entry.options.get(
+                            CONF_ASSIST_SENTENCES, DEFAULT_ASSIST_SENTENCES
+                        ),
+                    ): BooleanSelector(),
+                    vol.Optional(
+                        CONF_IMPORT_STATISTICS,
+                        default=self.config_entry.options.get(
+                            CONF_IMPORT_STATISTICS, DEFAULT_IMPORT_STATISTICS
+                        ),
+                    ): BooleanSelector(),
                 }
             ),
         )

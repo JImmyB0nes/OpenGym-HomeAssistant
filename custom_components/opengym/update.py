@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import OpenGymDataCoordinator
-from .device_info import open_gym_device_info
+from .device_info import open_gym_device_info, suggested_entity_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +35,6 @@ class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntit
 
     _attr_has_entity_name = True
     _attr_translation_key = "instance_update"
-    _attr_name = "openGym Instanz"
     _attr_title = "openGym"
     _attr_supported_features = UpdateEntityFeature.RELEASE_NOTES
 
@@ -48,6 +47,7 @@ class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntit
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_update"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "update", self._attr_translation_key)
         self._session = async_get_clientsession(coordinator.hass)
         self._installed: str | None = None
         self._latest: str | None = None

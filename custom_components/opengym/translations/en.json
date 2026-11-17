@@ -42,11 +42,15 @@
         "data": {
           "poll_interval": "Poll interval (minutes)",
           "rev_interval": "Fast check (seconds, 0 = off)",
-          "max_heart_rate": "Max heart rate (bpm, for HR zones)"
+          "max_heart_rate": "Max heart rate (bpm, for HR zones)",
+          "assist_sentences": "Voice commands (Assist)",
+          "import_statistics": "Import history into long-term statistics"
         },
         "data_description": {
           "rev_interval": "Checks openGym's revision (a few bytes) and live data; the full document is only fetched when something changed.",
-          "max_heart_rate": "Zones 1-5 = 50/60/70/80/90 % of this value."
+          "max_heart_rate": "Zones 1-5 = 50/60/70/80/90 % of this value.",
+          "assist_sentences": "Installs German and English sentences into config/custom_sentences/ (e.g. \"When is my next workout?\", \"Log 80.4 kilos\"). Turning it off removes them again.",
+          "import_statistics": "Body weight, volume per training day and the estimated 1RM of your most-trained exercises, back to your first workout – for statistics graphs and the energy-style history."
         }
       }
     }
@@ -102,46 +106,46 @@
         "name": "Muscle balance"
       },
       "muscle_chest": {
-        "name": "Chest idle days"
+        "name": "Chest idle"
       },
       "muscle_upper_back": {
-        "name": "Upper back idle days"
+        "name": "Upper back idle"
       },
       "muscle_lower_back": {
-        "name": "Lower back idle days"
+        "name": "Lower back idle"
       },
       "muscle_trapezius": {
-        "name": "Traps idle days"
+        "name": "Traps idle"
       },
       "muscle_deltoids": {
-        "name": "Shoulders idle days"
+        "name": "Shoulders idle"
       },
       "muscle_biceps": {
-        "name": "Biceps idle days"
+        "name": "Biceps idle"
       },
       "muscle_triceps": {
-        "name": "Triceps idle days"
+        "name": "Triceps idle"
       },
       "muscle_forearms": {
-        "name": "Forearms idle days"
+        "name": "Forearms idle"
       },
       "muscle_quadriceps": {
-        "name": "Quadriceps idle days"
+        "name": "Quadriceps idle"
       },
       "muscle_hamstring": {
-        "name": "Hamstrings idle days"
+        "name": "Hamstrings idle"
       },
       "muscle_adductors": {
-        "name": "Adductors idle days"
+        "name": "Adductors idle"
       },
       "muscle_calves": {
-        "name": "Calves idle days"
+        "name": "Calves idle"
       },
       "muscle_gluteal": {
-        "name": "Glutes idle days"
+        "name": "Glutes idle"
       },
       "muscle_abs": {
-        "name": "Core idle days"
+        "name": "Core idle"
       },
       "muscle_fatigue": {
         "name": "Muscle fatigue"
@@ -153,10 +157,10 @@
         "name": "Chest weekly sets"
       },
       "weekly_sets_upper_back": {
-        "name": "Upper Back weekly sets"
+        "name": "Upper back weekly sets"
       },
       "weekly_sets_lower_back": {
-        "name": "Lower Back weekly sets"
+        "name": "Lower back weekly sets"
       },
       "weekly_sets_trapezius": {
         "name": "Traps weekly sets"
@@ -301,6 +305,19 @@
       },
       "coach_reject": {
         "name": "Reject coach proposal"
+      }
+    },
+    "number": {
+      "rest_duration": {
+        "name": "Rest timer duration"
+      }
+    },
+    "select": {
+      "today_routine": {
+        "name": "Today's routine",
+        "state": {
+          "rest": "Rest day"
+        }
       }
     }
   },
@@ -546,6 +563,9 @@
     },
     "coach_use_app": {
       "message": "This proposal changes the plan's structure; accept it in the openGym app."
+    },
+    "plan_unknown_routine": {
+      "message": "Unknown routine: {routine}"
     }
   }
 }

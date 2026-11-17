@@ -65,6 +65,11 @@ MAX_REV_INTERVAL = 3600
 # Max heart rate for the watch HR zones (bpm)
 CONF_MAX_HEART_RATE = "max_heart_rate"
 DEFAULT_MAX_HEART_RATE = 190
+# Assist sentences in config/custom_sentences/ and the statistics import
+CONF_ASSIST_SENTENCES = "assist_sentences"
+CONF_IMPORT_STATISTICS = "import_statistics"
+DEFAULT_ASSIST_SENTENCES = True
+DEFAULT_IMPORT_STATISTICS = True
 
 # Services
 SERVICE_LOG_WEIGHIN = "log_weighin"

@@ -23,7 +23,7 @@ from . import logic
 from .api import OpenGymError
 from .const import DOMAIN
 from .coordinator import OpenGymDataCoordinator
-from .device_info import open_gym_device_info, prune_entities
+from .device_info import open_gym_device_info, prune_entities, suggested_entity_id
 
 
 async def async_setup_entry(
@@ -45,13 +45,13 @@ async def async_setup_entry(
 class _CoachButton(CoordinatorEntity[OpenGymDataCoordinator], ButtonEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry, key: str, name: str) -> None:
+    def __init__(self, coordinator, entry, key: str) -> None:
         super().__init__(coordinator)
         self._entry = entry
         self._attr_translation_key = key
-        self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "button", self._attr_translation_key)
 
     @property
     def _pending(self) -> dict[str, Any] | None:
@@ -86,7 +86,7 @@ class CoachAcceptButton(_CoachButton):
     _attr_icon = "mdi:check-circle"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "coach_accept", "Accept coach proposal")
+        super().__init__(coordinator, entry, "coach_accept")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -125,7 +125,7 @@ class CoachRejectButton(_CoachButton):
     _attr_icon = "mdi:close-circle"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "coach_reject", "Reject coach proposal")
+        super().__init__(coordinator, entry, "coach_reject")
 
     async def async_press(self) -> None:
         pending = self._require_pending()
