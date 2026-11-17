@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/JImmyB0nes/OpenGym-HomeAssistant/main/brand/logo.png" alt="openGym Logo" width="140" />
+<img src="https://raw.githubusercontent.com/JImmyB0nes/OpenGym-HomeAssistant/main/brand/logo.png" alt="openGym Logo" width="150" />
 
 # openGym for Home Assistant
 
-**Your training in the smart home – workouts, personal records, muscle balance and training plan from your self-hosted [openGym](https://github.com/DuarteSantos8/openGym) instance.**
+**Your training in the smart home.** Workouts, personal records, muscle balance and training plan — straight from your self-hosted [openGym](https://github.com/DuarteSantos8/openGym) instance into Home Assistant.
 
 [![Release](https://img.shields.io/github/v/release/JImmyB0nes/OpenGym-HomeAssistant?label=Release&color=a3e635)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/releases/latest)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-%E2%89%A5%202024.11-18bcf2?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
@@ -15,6 +15,7 @@
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
 [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=opengym)
 
+<a href="#-quick-start">Quick start</a> ·
 <a href="#-installation--setup">Installation</a> ·
 <a href="#-dashboard-cards">Cards</a> ·
 <a href="#%EF%B8%8F-voice-control-assist">Voice</a> ·
@@ -32,32 +33,87 @@
   </tr>
 </table>
 
-## ✨ What you get
+## ✨ Highlights
 
-| | |
-|---|---|
-| ⚡ **Real time** | Signed webhooks for *workout finished*, *new personal record* and *weigh-in* – as HA events and device triggers |
-| 🔄 **Always up to date** | Polling of the openGym API (default 15 min) plus a fast revision check every 30 s |
-| 🧬 **Dashboard cards** | Muscle balance with openGym's body map, training week, next workout and progress (1RM trend, weight vs. goal, records) – bundled, no extra resource needed |
-| 🏋️ **Sensors** | Last workout, volume, week streak, next session, records, 1RM, weight & goal, fatigue, weekly sets per muscle |
-| 💪 **Muscles** | Rest days and recovery for 14 muscle groups from openGym's exercise catalog (over 5,600 exercises, names in German/English) |
-| 🗓️ **Plan** | Training plan and history as calendars; pick today's routine from a dropdown, set a rest day, move a workout, day note – written back conflict-safely |
-| 🗣️ **Voice** | Ask Assist *"When is my next workout?"*, say *"Log 80.4 kilos"* or *"Start a 90 second rest"* – in German and English, set up automatically |
-| 📈 **History** | Your whole openGym history (body weight, volume, 1RM per exercise) in Home Assistant's long-term statistics – back to your first workout, not just since installing |
-| 📖 **Logbook** | Finished workouts, records and weigh-ins appear as readable lines in the logbook, no automation needed |
-| ⏱️ **During training** | Rest-timer pushes to your devices, live progress *(admin)*, heart rate & zone from your watch |
-| 🧑‍🏫 **Coach** | Trigger a review, status as sensor, accept/reject suggestions via buttons *(if your instance offers the coach)* |
-| 🌍 **Your language** | Entity names follow Home Assistant's language (German/English); entity IDs stay English, so automations and cards keep working |
-| 🔐 **Secure & maintainable** | Pairing code instead of passwords, HMAC signature verification, reauth, repair hints, diagnostic data, update entity, tested against a real Home Assistant core in CI |
+<table>
+  <tr>
+    <td width="50%" valign="top">
+
+⚡ **Real time**
+Signed webhooks for *workout finished*, *new personal record* and *weigh-in* — as HA events, logbook entries and device triggers.
+
+🔄 **Always up to date**
+Polling of the openGym API (default 15 min) plus a fast revision check every 30 s.
+
+🧬 **Dashboard cards**
+Muscle balance with openGym's body map, training week, next workout and progress (1RM trend, weight vs. goal, records) — bundled, no extra resource needed.
+
+🏋️ **Sensors for everything**
+Last workout, volume, week streak, next session, records, 1RM, weight & goal, fatigue, weekly sets per muscle.
+
+💪 **14 muscle groups**
+Rest days and recovery from openGym's exercise catalog (over 5,600 exercises, names in German/English).
+
+🗓️ **Plan control**
+Training plan and history as calendars; pick today's routine from a dropdown, set a rest day, move a workout, day note — written back conflict-safely.
+
+    </td>
+    <td width="50%" valign="top">
+
+🗣️ **Voice**
+Ask Assist *"When is my next workout?"*, say *"Log 80.4 kilos"* or *"Start a 90 second rest"* — in German and English, set up automatically.
+
+📈 **Full history**
+Your whole openGym history (body weight, volume, 1RM per exercise) in Home Assistant's long-term statistics — back to your first workout, not just since installing.
+
+📖 **Logbook**
+Finished workouts, records and weigh-ins appear as readable lines in the logbook, no automation needed.
+
+⏱️ **During training**
+Rest-timer pushes to your devices, live progress *(admin)*, heart rate & zone from your watch.
+
+🧑‍🏫 **Coach**
+Trigger a review, status as sensor, accept/reject suggestions via buttons *(if your instance offers the coach)*.
+
+🔐 **Secure & maintainable**
+Pairing code instead of passwords, HMAC signature verification, reauth, repair hints, diagnostic data, update entity — tested against a real Home Assistant core in CI.
+
+🌍 **Your language**
+Entity names follow Home Assistant's language (German/English); entity IDs stay English, so automations and cards keep working.
+
+    </td>
+  </tr>
+</table>
 
 > [!TIP]
-> **New in 0.11:** voice control with Assist, logbook entries, full history in the long-term statistics, the progress card, a rest-timer slider and a "today's routine" dropdown, translated entity names. Nothing to migrate – existing entity IDs stay as they are.
+> **New in 0.11:** voice control with Assist, logbook entries, full history in the long-term statistics, the progress card, a rest-timer slider and a "today's routine" dropdown, translated entity names. Nothing to migrate — existing entity IDs stay as they are.
 
-## 🚀 Installation & Setup
+## 🚀 Quick start
 
-> **TL;DR:** `INTEGRATIONS=webhook` (+ `INTEGRATIONS_ALLOW_LAN=1` if HA runs in your home network) in openGym's `.env` → `docker compose up -d` → install the integration via HACS → restart → add *openGym* → enter the pairing code from **Settings → Account → "Pair mobile app"**.
+Setup takes about ten minutes. TL;DR:
 
-Setup takes about ten minutes and has four parts: prepare openGym, sort out the addresses, install and pair the integration, add the cards. The examples consistently use these values – replace them with your own:
+1. **openGym `.env`** — add `INTEGRATIONS=webhook` (plus `INTEGRATIONS_ALLOW_LAN=1` if HA runs in your home network), then `docker compose up -d`.
+2. **Install** — openGym in HACS → *Integrations* → download, restart Home Assistant.
+3. **Pair** — add the *openGym* integration and enter the pairing code from **Settings → Account → "Pair mobile app"** in the openGym web app.
+4. **Cards** — Dashboard → *Add card* → search for *openGym*. Done. 🎉
+
+<details>
+<summary>How the pieces talk to each other</summary>
+
+```mermaid
+flowchart LR
+    O[openGym server<br/>Docker Compose] -- "REST API · poll 15 min + 30 s check" --> HA[Home Assistant]
+    O -- "signed webhooks<br/>workout · PR · weigh-in" --> HA
+    HA -- "plan edits · weigh-ins<br/>rest timer · coach" --> O
+    HA --- C[Dashboard cards]
+    HA --- V[Voice / Assist]
+    HA --- S[Statistics & logbook]
+    HA --- A[Automations & triggers]
+```
+
+</details>
+
+The rest of this guide explains every step in detail — with example addresses you can simply adapt:
 
 | What | Example |
 |---|---|
@@ -65,6 +121,8 @@ Setup takes about ten minutes and has four parts: prepare openGym, sort out the 
 | openGym public (reverse proxy/tunnel) | `https://gym.example.com` |
 | Home Assistant in the home network | `http://192.168.123.20:8123` |
 | Home Assistant public (optional) | `https://ha.example.com` |
+
+## 🛠️ Installation & Setup
 
 ### 1. Prerequisites
 
@@ -90,7 +148,7 @@ INTEGRATIONS_ALLOW_LAN=1
 ```
 
 <details>
-<summary>What exactly is allowed – and what stays blocked</summary>
+<summary>What exactly is allowed — and what stays blocked</summary>
 
 What the switch allows (`api/net-guard.js`):
 
@@ -191,7 +249,7 @@ The chosen URL must be reachable **from inside the openGym container**, not just
 
 - Use the **IP address**. `homeassistant.local` (mDNS) usually does not resolve inside a Docker container.
 - Do not use `127.0.0.1` or `localhost`, even if both run on the same host. Loopback is always blocked. Use the host's LAN IP.
-- Test from the container: `docker compose exec api wget -qO- http://192.168.123.20:8123/api/` must answer with `401 Unauthorized` – that means: reachable. If `wget` is missing in the image, use `node -e "fetch('http://192.168.123.20:8123/api/').then(r=>console.log(r.status))"`.
+- Test from the container: `docker compose exec api wget -qO- http://192.168.123.20:8123/api/` must answer with `401 Unauthorized` — that means: reachable. If `wget` is missing in the image, use `node -e "fetch('http://192.168.123.20:8123/api/').then(r=>console.log(r.status))"`.
 
 </details>
 
@@ -226,17 +284,17 @@ Then restart as well.
 
 ### 6. Set up and pair the integration
 
-1. **Settings → Devices & Services → Add integration → openGym** – or directly:
+1. **Settings → Devices & Services → Add integration → openGym** — or directly:
    [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=opengym)
 2. Enter the **URL** from step 3, e.g. `http://192.168.123.14:8080`. The integration immediately checks `GET /api/config`.
 3. **Create a pairing code.** Open the openGym web app in the browser, logged in with the account HA should see:
    **Settings → Account → "Pair mobile app"** → confirm with passkey or password ("Confirm it's you first.") → openGym shows an 8-digit code.
    - The code is valid for **5 minutes** and only once. A new code replaces the old one.
    - Create it in the **browser**. In the phone app this only works if the account has a password.
-4. Enter the code in the dialog. Optionally give it a name – useful with multiple profiles.
+4. Enter the code in the dialog. Optionally give it a name — useful with multiple profiles.
 5. Choose **webhook**:
    - **"Set up webhook automatically"** (default): the integration itself creates the webhook connection "Home Assistant" in openGym with the events `workout.finished`, `workout.pr` and `weighin.logged`, and takes over the signing secret. Steps 2 and 4 are the prerequisites. If it fails, the HA log says *"could not create the webhook connection automatically"*. The integration still works and keeps polling.
-   - **Manually** (unchecked): the dialog shows the webhook URL (`…/api/webhook/<id>`). Enter it in openGym under **Settings → Integrations → Webhooks → Connect**, select the three events *Workout finished*, *New personal record* and *Weigh-in logged*, and copy the signing secret – shown **only once** – into the *Secret* field. Without a secret, deliveries are not signature-verified.
+   - **Manually** (unchecked): the dialog shows the webhook URL (`…/api/webhook/<id>`). Enter it in openGym under **Settings → Integrations → Webhooks → Connect**, select the three events *Workout finished*, *New personal record* and *Weigh-in logged*, and copy the signing secret — shown **only once** — into the *Secret* field. Without a secret, deliveries are not signature-verified.
 6. Verify: in HA, subscribe to the event `opengym_workout_finished` under **Developer tools → Events**. Then in openGym, open the connection under **Settings → Integrations → Webhooks** and tap **Send test event**, or run the `opengym.trigger_test_event` action in HA. An event with `"test": true` must appear. The connection's detail sheet in openGym also shows the last delivery and the last error.
 
 ### 7. Add the cards
@@ -262,7 +320,7 @@ The integration ships four cards (`custom:opengym-muscle-card`, `custom:opengym-
 
 Four cards come with the integration. They follow the HA theme (light/dark) and the HA language (de/en) and have a visual editor.
 
-### Muscle balance – `custom:opengym-muscle-card`
+### Muscle balance — `custom:opengym-muscle-card`
 
 openGym's real body map, overlaid with your week. Use ‹ › to page through past weeks. Clicking a muscle opens details (weekly sets, fatigue, 1RM history, exercises). Plus a 12-week heatmap and stats (sets, volume, sessions, week streak, PRs, avg heart rate, weight).
 
@@ -295,7 +353,7 @@ accent: "#a3e635"   # custom accent color (default: HA primary color)
 
 </details>
 
-### Training week – `custom:opengym-week-card`
+### Training week — `custom:opengym-week-card`
 
 Plan and reality side by side: planned routine with icon, completed sessions with volume and sets.
 
@@ -312,7 +370,7 @@ accent: "#a3e635"
 
 </details>
 
-### Next workout – `custom:opengym-next-card`
+### Next workout — `custom:opengym-next-card`
 
 Routine with icon, exercises with sets × reps and weight, muscle chips, live progress during the workout, and a button for the rest timer.
 
@@ -329,9 +387,9 @@ show_rest_button: true  # "Start rest timer" (opengym.start_rest_timer)
 
 </details>
 
-### Progress – `custom:opengym-progress-card`
+### Progress — `custom:opengym-progress-card`
 
-Are you getting stronger? The estimated 1RM of your most-trained exercises over the last 12 months (tabs to switch, change since the start of the period, best ever), your body weight against the goal line, and a timeline of your latest records. The data comes straight from the integration (WebSocket), so it covers your entire history – not only what the sensors recorded.
+Are you getting stronger? The estimated 1RM of your most-trained exercises over the last 12 months (tabs to switch, change since the start of the period, best ever), your body weight against the goal line, and a timeline of your latest records. The data comes straight from the integration (WebSocket), so it covers your entire history — not only what the sensors recorded.
 
 <details>
 <summary>Configuration</summary>
@@ -355,7 +413,7 @@ The data source is `sensor.opengym_muscle_balance`, `sensor.opengym_next_session
 
 ## 🗣️ Voice control (Assist)
 
-Talk to openGym through Home Assistant's built-in voice assistant – on your phone, a smart speaker or the Assist dialog. German and English work out of the box:
+Talk to openGym through Home Assistant's built-in voice assistant — on your phone, a smart speaker or the Assist dialog. German and English work out of the box:
 
 | You say | openGym answers / does |
 |---|---|
@@ -369,7 +427,7 @@ Talk to openGym through Home Assistant's built-in voice assistant – on your ph
 <details>
 <summary>How it works, customising, switching it off</summary>
 
-- The integration writes its sentences to `config/custom_sentences/de/opengym.yaml` and `config/custom_sentences/en/opengym.yaml` and reloads the conversation agent – nothing to set up.
+- The integration writes its sentences to `config/custom_sentences/de/opengym.yaml` and `config/custom_sentences/en/opengym.yaml` and reloads the conversation agent — nothing to set up.
 - **Your own wording:** edit the files and **delete their first line** (`# managed-by: opengym`). From then on the integration never touches them again. Otherwise they are refreshed on updates.
 - **Off:** integration **options → Voice commands (Assist)**. Switching it off removes the files again (only unedited ones).
 - With several openGym profiles, voice uses the first one.
@@ -379,12 +437,12 @@ Talk to openGym through Home Assistant's built-in voice assistant – on your ph
 
 ## 📈 Long-term statistics
 
-Sensors only start recording the day you install an integration. openGym already knows everything since your first workout – so after each change the integration imports that history into Home Assistant's long-term statistics:
+Sensors only start recording the day you install an integration. openGym already knows everything since your first workout — so after each change the integration imports that history into Home Assistant's long-term statistics:
 
 | Statistic | Contains |
 |---|---|
 | `opengym:<entry>_body_weight` | every weigh-in (one value per day) |
-| `opengym:<entry>_volume` | lifted volume per training day – as a sum, so a statistics graph with *change* shows volume per day, week, month or year |
+| `opengym:<entry>_volume` | lifted volume per training day — as a sum, so a statistics graph with *change* shows volume per day, week, month or year |
 | `opengym:<entry>_1rm_<exercise>` | best estimated 1RM per training day, for your 8 most-trained exercises |
 
 Show them with the built-in **Statistics graph** card (search for "openGym" in the statistic picker):
@@ -401,9 +459,16 @@ entities:
 
 Re-importing is idempotent, so nothing is duplicated. Switch it off in the integration **options → Import history into long-term statistics**.
 
+## 📖 Logbook
+
+No automation needed: every finished workout, personal record and weigh-in lands in Home Assistant's **logbook** as a readable line, e.g.
+
+> *openGym finished Push (12,400 kg volume, 18 sets, 54 min)*
+> *openGym set a new personal record: Bench press 100 kg × 3*
+
 ## 📋 Entities & Services
 
-Entity **names** follow Home Assistant's language (German or English). Entity **IDs** are always built from the English names and the device name *openGym* – in every language – so the IDs below, the cards' defaults and your automations stay valid. If you renamed the integration entry, the prefix changes. Existing entities keep their IDs on updates.
+Entity **names** follow Home Assistant's language (German or English). Entity **IDs** are always built from the English names and the device name *openGym* — in every language — so the IDs below, the cards' defaults and your automations stay valid. If you renamed the integration entry, the prefix changes. Existing entities keep their IDs on updates.
 
 <details>
 <summary><b>Sensors</b></summary>
@@ -412,12 +477,12 @@ Entity **names** follow Home Assistant's language (German or English). Entity **
 |---|---|
 | `sensor.opengym_last_workout` | last workout (date, volume, sets as attributes) |
 | `sensor.opengym_last_personal_record` | records of the last workout |
-| `sensor.opengym_last_weigh_in` | weight – a real scale sensor, for energy dashboards & co. |
+| `sensor.opengym_last_weigh_in` | weight — a real scale sensor, for energy dashboards & co. |
 | `sensor.opengym_volume_this_week` | volume this week (kg) |
 | `sensor.opengym_workouts_this_week` | sessions this week |
 | `sensor.opengym_workout_streak` | training days in a row |
 | `sensor.opengym_week_streak` | *(0.10.1)* week streak like in openGym: consecutive weeks with training, incl. freeze (one every 4 weeks, max 2); the current week does not break the streak |
-| `sensor.opengym_days_since_last_workout` | days without training – for reminders |
+| `sensor.opengym_days_since_last_workout` | days without training — for reminders |
 | `sensor.opengym_next_session` | `Push · 2026-11-16` or `Rest` |
 | `sensor.opengym_total_lifted` | volume lifted ever |
 | `sensor.opengym_goal_weight` | goal weight with `delta` and `at_or_below_goal` |
@@ -427,10 +492,10 @@ Entity **names** follow Home Assistant's language (German or English). Entity **
 | `sensor.opengym_custom_exercises` | number of custom exercises (list as attribute) |
 | `sensor.opengym_muscle_fatigue` | fatigue per muscle (half-life model) as attributes |
 | `sensor.opengym_weekly_training_history` | 12-week history (sets, sessions, volume) for the heatmap |
-| `sensor.opengym_muscle_balance` | weekly sets per muscle, target ranges, last trained, best 1RM, PRs of the week, weight history, avg HR – as attributes for the cards |
+| `sensor.opengym_muscle_balance` | weekly sets per muscle, target ranges, last trained, best 1RM, PRs of the week, weight history, avg HR — as attributes for the cards |
 | `sensor.opengym_live_workout_progress` | *(0.10)* progress of the ongoing workout in % (exercise x/y, sets x/y as attributes; needs admin rights) |
 | `sensor.opengym_rest_timer` | *(0.10)* rest timer from HA: `idle` / `running`, end as attribute `ends_at`, remaining time `remaining` |
-| `sensor.opengym_<muscle>_weekly_sets` | *(0.10)* effective sets this week per muscle – with `state_class: measurement`, so long-term statistics |
+| `sensor.opengym_<muscle>_weekly_sets` | *(0.10)* effective sets this week per muscle — with `state_class: measurement`, so long-term statistics |
 | `sensor.opengym_coach` | *(0.10, coach only)* `idle` · `queued` · `running` · `proposal`, suggestion and changes as attributes |
 | `sensor.opengym_paired_watches` | *(0.10, watch feature only)* paired watches, last seen |
 | `sensor.opengym_watch_heart_rate` | *(0.10)* latest heart rate from the watch (bpm). Watch sensors only exist once a watch is paired; they appear then without a restart. |
@@ -442,7 +507,7 @@ Additionally *(0.10)*:
 - `binary_sensor.opengym_workout_reminder_due` — `on` while openGym's reminder rule would still remind today
 - `button.opengym_accept_coach_proposal` / `button.opengym_reject_coach_proposal` — only if the instance offers the coach
 
-New in **0.11** – controls for the dashboard:
+New in **0.11** — controls for the dashboard:
 - `select.opengym_today_s_routine` — today's routine (your openGym routines or *Rest day*). Picking one writes a day override into the plan, like swapping a day in the app; picking what the weekly plan has anyway removes the override.
 - `number.opengym_rest_timer_duration` — rest timer length (15 s – 10 min). Used by `opengym.start_rest_timer` without `seconds`, the next-workout card's button and voice. Until you move it, it follows your openGym rest setting.
 
@@ -549,7 +614,7 @@ For those who want to know exactly:
 | `workout.pr` | `opengym_personal_record` |
 | `weighin.logged` | `opengym_weighin_logged` |
 
-Each event also shows up in the **logbook**, e.g. *"openGym finished Push (12,400 kg volume, 18 sets, 54 min)"* or *"openGym set a new personal record: Bench press 100 kg × 3"*. The event data is openGym's webhook payload (`data.workout`, `data.records`, `data.weighin`), see openGym's `docs/INTEGRATIONS.md`.
+Each event also shows up in the **logbook** (see above). The event data is openGym's webhook payload (`data.workout`, `data.records`, `data.weighin`), see openGym's `docs/INTEGRATIONS.md`.
 
 </details>
 
@@ -617,7 +682,7 @@ automation:
 | Entities **"Unavailable"** | openGym unreachable, after multiple failures a repair appears additionally; session expired, then HA starts re-authentication | check URL and reachability; when asked to *re-authenticate*, enter a new pairing code. Since 0.10.1 watch sensors are only created once a watch is paired, and live sensors only with an admin account. The integration removes stale entries itself. |
 | Live progress / "training in progress" missing | account is not an admin | openGym only exposes live presence to admins; pair with an admin account |
 | **Assist doesn't understand** an openGym sentence | option switched off; Assist uses another conversation agent (e.g. an LLM) without *"Prefer handling commands locally"*; language other than German/English | enable the option; in the voice assistant settings enable local handling; check `config/custom_sentences/<lang>/opengym.yaml` exists; add your own wording there (delete the first line) |
-| **No openGym statistics** in the statistics picker | recorder not running, option off, or no full fetch since the update | enable the option, then reload the integration once – the import runs after every full fetch |
+| **No openGym statistics** in the statistics picker | recorder not running, option off, or no full fetch since the update | enable the option, then reload the integration once — the import runs after every full fetch |
 
 ## ❓ FAQ
 
