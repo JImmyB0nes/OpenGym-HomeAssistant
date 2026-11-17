@@ -35,55 +35,21 @@
 
 ## ✨ Highlights
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-
-⚡ **Real time**
-Signed webhooks for *workout finished*, *new personal record* and *weigh-in* — as HA events, logbook entries and device triggers.
-
-🔄 **Always up to date**
-Polling of the openGym API (default 15 min) plus a fast revision check every 30 s.
-
-🧬 **Dashboard cards**
-Muscle balance with openGym's body map, training week, next workout and progress (1RM trend, weight vs. goal, records) — bundled, no extra resource needed.
-
-🏋️ **Sensors for everything**
-Last workout, volume, week streak, next session, records, 1RM, weight & goal, fatigue, weekly sets per muscle.
-
-💪 **14 muscle groups**
-Rest days and recovery from openGym's exercise catalog (over 5,600 exercises, names in German/English).
-
-🗓️ **Plan control**
-Training plan and history as calendars; pick today's routine from a dropdown, set a rest day, move a workout, day note — written back conflict-safely.
-
-    </td>
-    <td width="50%" valign="top">
-
-🗣️ **Voice**
-Ask Assist *"When is my next workout?"*, say *"Log 80.4 kilos"* or *"Start a 90 second rest"* — in German and English, set up automatically.
-
-📈 **Full history**
-Your whole openGym history (body weight, volume, 1RM per exercise) in Home Assistant's long-term statistics — back to your first workout, not just since installing.
-
-📖 **Logbook**
-Finished workouts, records and weigh-ins appear as readable lines in the logbook, no automation needed.
-
-⏱️ **During training**
-Rest-timer pushes to your devices, live progress *(admin)*, heart rate & zone from your watch.
-
-🧑‍🏫 **Coach**
-Trigger a review, status as sensor, accept/reject suggestions via buttons *(if your instance offers the coach)*.
-
-🔐 **Secure & maintainable**
-Pairing code instead of passwords, HMAC signature verification, reauth, repair hints, diagnostic data, update entity — tested against a real Home Assistant core in CI.
-
-🌍 **Your language**
-Entity names follow Home Assistant's language (German/English); entity IDs stay English, so automations and cards keep working.
-
-    </td>
-  </tr>
-</table>
+| | |
+|:---|:---|
+| ⚡ **Real time** | Signed webhooks for *workout finished*, *new personal record* and *weigh-in* — as HA events, logbook entries and device triggers. |
+| 🔄 **Always up to date** | Polling of the openGym API (default 15 min) plus a fast revision check every 30 s. |
+| 🧬 **Dashboard cards** | Muscle balance with openGym's body map, training week, next workout and progress (1RM trend, weight vs. goal, records) — bundled, no extra resource needed. |
+| 🏋️ **Sensors for everything** | Last workout, volume, week streak, next session, records, 1RM, weight & goal, fatigue, weekly sets per muscle. |
+| 💪 **14 muscle groups** | Rest days and recovery from openGym's exercise catalog (over 5,600 exercises, names in German/English). |
+| 🗓️ **Plan control** | Training plan and history as calendars; pick today's routine from a dropdown, set a rest day, move a workout, day note — written back conflict-safely. |
+| 🗣️ **Voice** | Ask Assist *"When is my next workout?"*, say *"Log 80.4 kilos"* or *"Start a 90 second rest"* — in German and English, set up automatically. |
+| 📈 **Full history** | Your whole openGym history (body weight, volume, 1RM per exercise) in Home Assistant's long-term statistics — back to your first workout, not just since installing. |
+| 📖 **Logbook** | Finished workouts, records and weigh-ins appear as readable lines in the logbook, no automation needed. |
+| ⏱️ **During training** | Rest-timer pushes to your devices, live progress *(admin)*, heart rate & zone from your watch. |
+| 🧑‍🏫 **Coach** | Trigger a review, status as sensor, accept/reject suggestions via buttons *(if your instance offers the coach)*. |
+| 🌍 **Your language** | Entity names follow Home Assistant's language (German/English); entity IDs stay English, so automations and cards keep working. |
+| 🔐 **Secure & maintainable** | Pairing code instead of passwords, HMAC signature verification, reauth, repair hints, diagnostic data, update entity — tested against a real Home Assistant core in CI. |
 
 > [!TIP]
 > **New in 0.11:** voice control with Assist, logbook entries, full history in the long-term statistics, the progress card, a rest-timer slider and a "today's routine" dropdown, translated entity names. Nothing to migrate — existing entity IDs stay as they are.
@@ -670,19 +636,81 @@ automation:
 
 ## 🩺 Troubleshooting
 
-| Problem | Cause | Solution |
-|---|---|---|
-| **`cannot_connect`** during setup | wrong URL or port (`3000` instead of `8080`), proxy login or HTML page instead of API, invalid HTTPS certificate, firewall | `curl <URL>/api/config` from the HA host must return JSON; use the LAN URL of the `web` container; exempt `/api/*` from Cloudflare Access or similar |
-| **`invalid_code`** | code older than 5 minutes, already used, replaced by a newer one, or created for a different instance | create a new code under *Settings → Account → Pair mobile app* and enter it right away; use the same instance as in the URL |
-| **Webhooks don't arrive** (data only after polling) | `INTEGRATIONS=webhook` missing; HA URL private without `INTEGRATIONS_ALLOW_LAN=1`; `.local` name or `127.0.0.1` as HA URL; container not recreated after `.env` change | check steps 2 and 4; `docker compose up -d`; `docker compose exec api printenv INTEGRATIONS_ALLOW_LAN`; open the webhook connection's detail sheet in openGym and read the last error (`refusing to connect` means: address blocked) |
-| Webhook error `ECONNREFUSED` or timeout | HA port blocked by the firewall, or openGym in a docker network without route into the LAN | open port `8123` for the openGym host; test from the container (step 4); with `network_mode`/custom networks check the route |
-| HA reports a **repair** "Webhook deliveries failed" | openGym could not deliver multiple times | fix the cause as above, then confirm the repair. The failed deliveries are re-queued. |
-| **Cards missing** in the card picker | HA not restarted after installation; dashboard in YAML mode; browser cache | restart; add the resource manually (step 7); Ctrl+F5 or clear the app's frontend cache |
-| Card shows "Configuration error" / *Custom element doesn't exist* | resource missing or stale cache | as above; *Resources* must list `/opengym/opengym-muscle-card.js?v=…` |
-| Entities **"Unavailable"** | openGym unreachable, after multiple failures a repair appears additionally; session expired, then HA starts re-authentication | check URL and reachability; when asked to *re-authenticate*, enter a new pairing code. Since 0.10.1 watch sensors are only created once a watch is paired, and live sensors only with an admin account. The integration removes stale entries itself. |
-| Live progress / "training in progress" missing | account is not an admin | openGym only exposes live presence to admins; pair with an admin account |
-| **Assist doesn't understand** an openGym sentence | option switched off; Assist uses another conversation agent (e.g. an LLM) without *"Prefer handling commands locally"*; language other than German/English | enable the option; in the voice assistant settings enable local handling; check `config/custom_sentences/<lang>/opengym.yaml` exists; add your own wording there (delete the first line) |
-| **No openGym statistics** in the statistics picker | recorder not running, option off, or no full fetch since the update | enable the option, then reload the integration once — the import runs after every full fetch |
+**Can't connect or pair?**
+
+<details>
+<summary><b><code>cannot_connect</code> during setup</b></summary>
+
+Wrong URL or port (`3000` instead of `8080`), a proxy login or HTML page instead of the API, an invalid HTTPS certificate, or a firewall.
+
+- `curl <URL>/api/config` from the HA host must return JSON — use the LAN URL of the `web` container.
+- If a proxy/SSO is in front of openGym, exempt `/api/*` from Cloudflare Access or similar.
+</details>
+
+<details>
+<summary><b><code>invalid_code</code></b></summary>
+
+The pairing code is older than 5 minutes, already used, replaced by a newer one, or created for a different instance. Create a new code under *Settings → Account → Pair mobile app* and enter it right away — on the same instance you entered as the URL.
+</details>
+
+**Webhooks**
+
+<details>
+<summary><b>Webhooks don't arrive</b> — data only after polling</summary>
+
+- `INTEGRATIONS=webhook` missing in openGym's `.env`, or the container was not recreated after the change (`docker compose up -d`, check with `docker compose exec api printenv INTEGRATIONS_ALLOW_LAN`).
+- HA URL is a private address without `INTEGRATIONS_ALLOW_LAN=1`, or a `.local` name / `127.0.0.1` — see steps 2 and 4.
+- Open the webhook connection's detail sheet in openGym and read the last error: `refusing to connect` means the address is blocked.
+</details>
+
+<details>
+<summary><b><code>ECONNREFUSED</code> or timeout</b></summary>
+
+HA's port blocked by the firewall, or openGym in a docker network without route into the LAN. Open port `8123` for the openGym host, test from the container (step 4); with `network_mode`/custom networks check the route.
+</details>
+
+<details>
+<summary><b>HA reports a repair "Webhook deliveries failed"</b></summary>
+
+openGym could not deliver multiple times. Fix the cause above, then confirm the repair — the failed deliveries are re-queued.
+</details>
+
+**Cards & entities**
+
+<details>
+<summary><b>Cards missing</b> in the card picker, or *Custom element doesn't exist*</summary>
+
+- HA not restarted after installation, or the dashboard is in YAML mode — add the resource manually (step 7).
+- Browser cache: Ctrl+F5, or clear the app's frontend cache. The *Resources* list must contain `/opengym/opengym-muscle-card.js?v=…`.
+</details>
+
+<details>
+<summary><b>Entities "Unavailable"</b></summary>
+
+openGym unreachable (a repair appears after multiple failures) or the session expired — when asked to *re-authenticate*, enter a new pairing code. Check URL and reachability. Watch sensors only exist once a watch is paired, live sensors only with an admin account; stale entries are removed by the integration itself.
+</details>
+
+<details>
+<summary><b>Live progress / "training in progress" missing</b></summary>
+
+openGym only exposes live presence to admins. Pair with an admin account.
+</details>
+
+**Voice & statistics**
+
+<details>
+<summary><b>Assist doesn't understand</b> an openGym sentence</summary>
+
+- The *Voice commands* option is off — enable it in the integration's options.
+- Assist uses another conversation agent (e.g. an LLM) without *"Prefer handling commands locally"* — enable local handling in the voice assistant settings.
+- Check `config/custom_sentences/<lang>/opengym.yaml` exists (only German/English); add your own wording there (delete the first line).
+</details>
+
+<details>
+<summary><b>No openGym statistics</b> in the statistics picker</summary>
+
+The recorder is not running, the option is off, or there was no full fetch since the update. Enable the option, then reload the integration once — the import runs after every full fetch.
+</details>
 
 ## ❓ FAQ
 
