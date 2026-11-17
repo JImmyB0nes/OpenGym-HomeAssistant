@@ -1,0 +1,5 @@
+# Real Home Assistant core + test harness for tests_ha/ (pulls a matching
+# homeassistant release). The frontend package is a dependency of the
+# integration's `frontend` manifest dependency.
+pytest-homeassistant-custom-component
+home-assistant-frontend

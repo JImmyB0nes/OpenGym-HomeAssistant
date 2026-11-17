@@ -26,29 +26,31 @@ from .const import (
     MUSCLES,
     _CANON,
 )
-from .coordinator import OpenGymDataCoordinator, OpenGymState
-from .device_info import open_gym_device_info, prune_entities
+from .coordinator import OpenGymDataCoordinator
+from .state import OpenGymState
+from .device_info import open_gym_device_info, prune_entities, suggested_entity_id
 
-# (key, name, kind) — kind selects the value function below.
+# (key, kind) — kind selects the value function below; names come from
+# the translations (entity.sensor.<key>.name).
 STATIC_SENSORS = (
-    ("last_workout", "Last workout", "workout"),
-    ("last_record", "Last personal record", "record"),
-    ("last_weighin", "Last weigh-in", "weighin"),
-    ("week_volume", "Volume this week", "volume"),
-    ("week_workouts", "Workouts this week", "count"),
-    ("streak", "Workout streak", "streak"),
-    ("week_streak", "Week streak", "week_streak"),
-    ("next_session", "Next session", "next"),
-    ("total_lifting", "Total lifted", "total"),
-    ("goal_weight", "Goal weight", "goal"),
-    ("days_since_workout", "Days since last workout", "days_since"),
-    ("personal_records", "Personal records", "prs"),
-    ("workout_heart_rate", "Workout heart rate", "hr"),
-    ("best_one_rm", "Estimated 1RM", "one_rm"),
-    ("custom_exercises", "Custom exercises", "custom_ex"),
-    ("muscle_balance", "Muscle balance", "balance"),
-    ("muscle_fatigue", "Muscle fatigue", "fatigue"),
-    ("week_history", "Weekly training history", "history"),
+    ("last_workout", "workout"),
+    ("last_record", "record"),
+    ("last_weighin", "weighin"),
+    ("week_volume", "volume"),
+    ("week_workouts", "count"),
+    ("streak", "streak"),
+    ("week_streak", "week_streak"),
+    ("next_session", "next"),
+    ("total_lifting", "total"),
+    ("goal_weight", "goal"),
+    ("days_since_workout", "days_since"),
+    ("personal_records", "prs"),
+    ("workout_heart_rate", "hr"),
+    ("best_one_rm", "one_rm"),
+    ("custom_exercises", "custom_ex"),
+    ("muscle_balance", "balance"),
+    ("muscle_fatigue", "fatigue"),
+    ("week_history", "history"),
 )
 
 
@@ -60,16 +62,16 @@ async def async_setup_entry(
     """Set up openGym sensors."""
     coordinator: OpenGymDataCoordinator = entry.runtime_data.coordinator
     entities: list[SensorEntity] = [
-        OpenGymSensor(coordinator, entry, key, name, kind)
-        for key, name, kind in STATIC_SENSORS
+        OpenGymSensor(coordinator, entry, key, kind)
+        for key, kind in STATIC_SENSORS
     ]
     entities += [
-        MuscleDaysSensor(coordinator, entry, muscle, label) for muscle, label in MUSCLES.items()
+        MuscleDaysSensor(coordinator, entry, muscle) for muscle in MUSCLES
     ]
     # (11) long-term statistics: weekly sets per muscle
     entities += [
-        MuscleWeeklySetsSensor(coordinator, entry, muscle, label)
-        for muscle, label in MUSCLES.items()
+        MuscleWeeklySetsSensor(coordinator, entry, muscle)
+        for muscle in MUSCLES
     ]
     # (2) rest timer started from HA; live progress needs admin presence
     entities.append(RestTimerSensor(coordinator, entry))
@@ -114,14 +116,14 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry, key: str, name: str, kind: str) -> None:
+    def __init__(self, coordinator, entry, key: str, kind: str) -> None:
         super().__init__(coordinator)
         self._key = key
         self._kind = kind
         self._attr_translation_key = key
-        self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "sensor", self._attr_translation_key)
         self._entry_id = entry.entry_id
         if kind == "weighin":
             self._attr_device_class = SensorDeviceClass.WEIGHT
@@ -286,7 +288,7 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
                     "total_sets": nxt["total_sets"],
                     "muscles": nxt["muscles"],
                     "exercise_list": nxt["exercises"],
-                    "rest_sec": state.rest_seconds(),
+                    "rest_sec": self.coordinator.rest_default_seconds(),
                     "unit": state.unit,
                     "entry_id": self._entry_id,
                 }
@@ -387,13 +389,13 @@ class MuscleDaysSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
     _attr_native_unit_of_measurement = UnitOfTime.DAYS
     _attr_icon = "mdi:human-handsup"
 
-    def __init__(self, coordinator, entry, muscle: str, label: str) -> None:
+    def __init__(self, coordinator, entry, muscle: str) -> None:
         super().__init__(coordinator)
         self._muscle = muscle
         self._attr_translation_key = f"muscle_{muscle.replace('-', '_')}"
-        self._attr_name = f"{label} idle"
         self._attr_unique_id = f"{entry.entry_id}_muscle_{muscle}"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "sensor", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -410,13 +412,13 @@ class MuscleDaysSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
 class _Base(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry, key: str, name: str) -> None:
+    def __init__(self, coordinator, entry, key: str) -> None:
         super().__init__(coordinator)
         self._entry = entry
         self._attr_translation_key = key
-        self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "sensor", self._attr_translation_key)
 
 
 class MuscleWeeklySetsSensor(_Base):
@@ -427,10 +429,8 @@ class MuscleWeeklySetsSensor(_Base):
     _attr_icon = "mdi:chart-bar"
     _attr_suggested_display_precision = 1
 
-    def __init__(self, coordinator, entry, muscle: str, label: str) -> None:
-        super().__init__(
-            coordinator, entry, f"weekly_sets_{muscle.replace('-', '_')}", f"{label} weekly sets"
-        )
+    def __init__(self, coordinator, entry, muscle: str) -> None:
+        super().__init__(coordinator, entry, f"weekly_sets_{muscle.replace('-', '_')}")
         self._muscle = muscle
         # openGym's map spells forearms `forearm`
         self._slugs = {muscle} | {s for s, canon in _CANON.items() if canon == muscle}
@@ -469,7 +469,7 @@ class LiveProgressSensor(_Base):
     _attr_icon = "mdi:progress-check"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "live_progress", "Live workout progress")
+        super().__init__(coordinator, entry, "live_progress")
 
     @property
     def available(self) -> bool:
@@ -501,7 +501,7 @@ class RestTimerSensor(_Base):
     _attr_options = ["idle", "running"]
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "rest_timer", "Rest timer")
+        super().__init__(coordinator, entry, "rest_timer")
 
     @property
     def available(self) -> bool:
@@ -525,7 +525,7 @@ class RestTimerSensor(_Base):
             "ends_at": end.isoformat() if running else None,
             "remaining": max(0, round((end - dt_util.utcnow()).total_seconds())) if running else 0,
             "seconds": self.coordinator.rest_timer_seconds if running else None,
-            "default_seconds": state.rest_seconds() if state else None,
+            "default_seconds": self.coordinator.rest_default_seconds() if state else None,
         }
 
 
@@ -537,7 +537,7 @@ class CoachStatusSensor(_Base):
     _attr_icon = "mdi:account-tie-voice"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "coach_status", "Coach")
+        super().__init__(coordinator, entry, "coach_status")
 
     @property
     def available(self) -> bool:
@@ -570,7 +570,7 @@ class WatchPairedSensor(_WatchBase):
     _attr_native_unit_of_measurement = "watches"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "watch_paired", "Paired watches")
+        super().__init__(coordinator, entry, "watch_paired")
 
     @property
     def native_value(self) -> int:
@@ -595,7 +595,7 @@ class WatchHeartRateSensor(_WatchBase):
     _attr_icon = "mdi:heart-pulse"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "watch_heart_rate", "Watch heart rate")
+        super().__init__(coordinator, entry, "watch_heart_rate")
 
     @property
     def native_value(self) -> int | None:
@@ -619,7 +619,7 @@ class WatchHeartRateZoneSensor(_WatchBase):
     _attr_icon = "mdi:heart-flash"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "watch_hr_zone", "Heart rate zone")
+        super().__init__(coordinator, entry, "watch_hr_zone")
 
     @property
     def _max_hr(self) -> float:

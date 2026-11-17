@@ -32,6 +32,7 @@ def async_setup_ws(hass: HomeAssistant) -> None:
         return
     websocket_api.async_register_command(hass, ws_detail)
     websocket_api.async_register_command(hass, ws_version)
+    websocket_api.async_register_command(hass, ws_progress)
     hass.data.setdefault("_opengym_ws_registered", set()).add(f"{DOMAIN}_detail")
     hass.data["_opengym_ws_registered"].add(f"{DOMAIN}_version")
 
@@ -92,6 +93,34 @@ def _resolve_entry(hass: HomeAssistant, entry_id: str | None, entity_id: str | N
         ),
         None,
     )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "opengym:progress",
+        vol.Optional("entry_id"): str,
+        vol.Optional("entity_id"): str,
+        vol.Optional("days", default=365): vol.All(int, vol.Range(min=7, max=3650)),
+        vol.Optional("exercises", default=8): vol.All(int, vol.Range(min=1, max=20)),
+    }
+)
+@callback
+def ws_progress(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """1RM history per exercise, weight vs. goal and the PR timeline (progress card)."""
+    entry = _resolve_entry(hass, msg.get("entry_id"), msg.get("entity_id"))
+    coordinator = getattr(getattr(entry, "runtime_data", None), "coordinator", None)
+    if entry is None or coordinator is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "no openGym entry")
+        return
+    if coordinator.data is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_READY, "openGym data not ready")
+        return
+    result = coordinator.data.progress(date.today(), msg["days"], msg["exercises"])
+    result["entry_id"] = entry.entry_id
+    result["version"] = INTEGRATION_VERSION
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command({"type": "opengym:version"})

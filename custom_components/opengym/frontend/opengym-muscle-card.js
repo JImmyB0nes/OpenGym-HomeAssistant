@@ -30,11 +30,21 @@
  *   max_exercises: 6                        # 0 = alle
  *   show_muscles: true                      # Muskel-Chips
  *   show_rest_button: true                  # Knopf „Pausentimer starten“ (opengym.start_rest_timer)
+ *
+ *   type: custom:opengym-progress-card
+ *   entity: sensor.opengym_estimated_1rm    # Default; wählt das openGym-Profil
+ *   title: Fortschritt
+ *   days: 365                               # Zeitraum (7–3650 Tage)
+ *   exercises: 6                            # meistgemachte Übungen als Tabs (1–20)
+ *   exercise: "0025"                        # optional: diese Übung vorauswählen (ID)
+ *   show_weight: true                       # Gewichtsverlauf mit Ziellinie
+ *   show_prs: true                          # Rekord-Zeitleiste
+ *   pr_limit: 5                             # Einträge der Zeitleiste
  */
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.10.2";
+const CARD_VERSION = "0.11.0";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
@@ -96,6 +106,11 @@ const UI = {
     showAll: (n) => `Alle ${n} anzeigen`, showLess: "Weniger anzeigen",
     planned: "Geplant", done: "Erledigt", missed: "Verpasst", todayLabel: "Heute",
     weekSummary: (d, p) => `${d} von ${p} Einheiten diese Woche`, noDays: "Keine Tage im Plan.",
+    progress: { title: "Fortschritt", range: (d) => d >= 360 ? `Letzte ${Math.round(d / 365) > 1 ? `${Math.round(d / 365)} Jahre` : "12 Monate"}` : `Letzte ${d} Tage`,
+      oneRm: "Geschätztes 1RM", best: "Bestwert", sessions: (n) => (n === 1 ? "1 Einheit" : `${n} Einheiten`),
+      weight: "Körpergewicht", goal: "Ziel", toGoal: (d) => `noch ${d}`, atGoal: "Ziel erreicht", start: "Start",
+      prs: "Rekorde", noData: "Noch keine Kraftwerte im Zeitraum.", noPrs: "Noch keine Rekorde.",
+      chart: (n, a, b) => `${n}: von ${a} auf ${b}`, exercises: "Übungen" },
   },
   en: {
     modes: { sets: "Sets", recovery: "Recovery", strength: "Strength", planned: "Planned" },
@@ -129,6 +144,11 @@ const UI = {
     showAll: (n) => `Show all ${n}`, showLess: "Show less",
     planned: "Planned", done: "Done", missed: "Missed", todayLabel: "Today",
     weekSummary: (d, p) => `${d} of ${p} sessions this week`, noDays: "No days in the plan.",
+    progress: { title: "Progress", range: (d) => d >= 360 ? `Last ${Math.round(d / 365) > 1 ? `${Math.round(d / 365)} years` : "12 months"}` : `Last ${d} days`,
+      oneRm: "Estimated 1RM", best: "Best", sessions: (n) => (n === 1 ? "1 session" : `${n} sessions`),
+      weight: "Body weight", goal: "Goal", toGoal: (d) => `${d} to go`, atGoal: "Goal reached", start: "Start",
+      prs: "Records", noData: "No strength data in this period yet.", noPrs: "No records yet.",
+      chart: (n, a, b) => `${n}: from ${a} to ${b}`, exercises: "Exercises" },
   },
 };
 
@@ -141,6 +161,8 @@ const EDITOR_LABELS = {
     show_plan_week: "Wochenplan im Geplant-Modus", days: "Anzahl Tage", display: "Anzeige",
     look: "Aussehen", male: "Männlich", female: "Weiblich",
     max_exercises: "Max. Übungen (0 = alle)", show_muscles: "Muskel-Chips", show_rest_button: "Pausentimer-Knopf",
+    exercises: "Anzahl Übungen (Tabs)", exercise: "Vorausgewählte Übung (ID, optional)", show_weight: "Gewichtsverlauf",
+    show_prs: "Rekord-Zeitleiste", pr_limit: "Einträge der Zeitleiste", days_range: "Zeitraum (Tage)",
   },
   en: {
     entity: "Entity", title: "Title (optional)", body: "Body model", mode: "Initial view",
@@ -150,6 +172,8 @@ const EDITOR_LABELS = {
     show_plan_week: "Weekly plan in planned view", days: "Number of days", display: "Display",
     look: "Appearance", male: "Male", female: "Female",
     max_exercises: "Max exercises (0 = all)", show_muscles: "Muscle chips", show_rest_button: "Rest timer button",
+    exercises: "Number of exercises (tabs)", exercise: "Preselected exercise (id, optional)", show_weight: "Weight trend",
+    show_prs: "Record timeline", pr_limit: "Timeline entries", days_range: "Period (days)",
   },
 };
 
@@ -163,6 +187,9 @@ const WEEK_DEFAULTS = { entity: DEFAULT_ENTITY, days: 14 };
 const NEXT_TAG = "opengym-next-card";
 const DEFAULT_NEXT_ENTITY = "sensor.opengym_next_session";
 const NEXT_DEFAULTS = { entity: DEFAULT_NEXT_ENTITY, max_exercises: 6, show_muscles: true, show_rest_button: true };
+const PROGRESS_TAG = "opengym-progress-card";
+const DEFAULT_PROGRESS_ENTITY = "sensor.opengym_estimated_1rm";
+const PROGRESS_DEFAULTS = { entity: DEFAULT_PROGRESS_ENTITY, days: 365, exercises: 6, show_weight: true, show_prs: true, pr_limit: 5 };
 
 // --- shared helpers ---------------------------------------------------------
 
@@ -1404,6 +1431,201 @@ const NEXT_CSS = `
 
 customElements.define(NEXT_TAG, OpenGymNextCard);
 
+// --- Progress card ---------------------------------------------------------------
+
+/** Inline SVG line chart: [{d, v}] -> path + area; optional dashed goal line. */
+function lineChart(points, { goal = null, height = 96, label = "" } = {}) {
+  const W = 300, H = height, P = 6;
+  const vals = points.map((p) => p.v);
+  if (goal != null) vals.push(goal);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 1e-6) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+  const t0 = parseDay(points[0].d).getTime(), t1 = parseDay(points[points.length - 1].d).getTime();
+  const x = (d) => (t1 === t0 ? W / 2 : P + ((parseDay(d).getTime() - t0) / (t1 - t0)) * (W - 2 * P));
+  const y = (v) => P + (1 - (v - lo) / (hi - lo)) * (H - 2 * P);
+  const xy = points.map((p) => [x(p.d), y(p.v)]);
+  const line = xy.map(([a, b], i) => `${i ? "L" : "M"}${a.toFixed(1)},${b.toFixed(1)}`).join("");
+  const area = `${line}L${xy[xy.length - 1][0].toFixed(1)},${H}L${xy[0][0].toFixed(1)},${H}Z`;
+  const [lx, ly] = xy[xy.length - 1];
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label)}">
+      <path class="area" d="${area}"/>
+      ${goal != null ? `<line class="goal" x1="0" x2="${W}" y1="${y(goal).toFixed(1)}" y2="${y(goal).toFixed(1)}"/>` : ""}
+      <path class="line" d="${line}"/>
+    </svg>
+    <span class="dotlast" style="left:${(lx / W * 100).toFixed(2)}%;top:${(ly / H * 100).toFixed(2)}%"></span>`;
+}
+
+class OpenGymProgressCard extends OpenGymBase {
+  static getConfigElement() { return document.createElement("opengym-progress-card-editor"); }
+
+  static getStubConfig(hass) {
+    const found = hass && Object.values(hass.entities || {})
+      .find((e) => e.platform === "opengym" && e.translation_key === "best_one_rm");
+    return { entity: found ? found.entity_id : DEFAULT_PROGRESS_ENTITY };
+  }
+
+  setConfig(config) {
+    this._cfg = { ...PROGRESS_DEFAULTS, ...(config || {}) };
+    if (!this._cfg.entity) this._cfg.entity = DEFAULT_PROGRESS_ENTITY;
+    this._data = null;
+    this._fetchedSig = null;
+    this._rerender();
+  }
+
+  getCardSize() { return 6; }
+  getGridOptions() { return { columns: 6, min_columns: 4, min_rows: 4 }; }
+  getLayoutOptions() { return { grid_columns: 2, grid_min_columns: 2 }; }
+
+  async _fetch() {
+    const sig = this._sig;
+    this._fetchedSig = sig;
+    try {
+      const conn = this._hass?.connection;
+      if (!conn?.sendMessagePromise) return;
+      const msg = {
+        type: "opengym:progress", entity_id: this._cfg.entity,
+        days: Math.min(3650, Math.max(7, Number(this._cfg.days) || 365)),
+        exercises: Math.min(20, Math.max(1, Number(this._cfg.exercises) || 6)),
+      };
+      const data = await conn.sendMessagePromise(msg);
+      if (this._fetchedSig !== sig) return; // a newer fetch is on its way
+      this._data = data;
+      this._error = null;
+    } catch (err) {
+      this._error = err?.message || String(err);
+    }
+    this._paintProgress();
+  }
+
+  _render() {
+    if (!this._hass || !this._cfg) return;
+    if (!this._checkEntity()) return;
+    if (this._fetchedSig !== this._sig) this._fetch();
+    this._paintProgress();
+  }
+
+  _paintProgress() {
+    const t = this._t, tp = t.progress, h = this._hass, c = this._cfg, d = this._data;
+    const head = (sub) => `<div class="head"><div class="badge"><ha-icon icon="mdi:chart-line"></ha-icon></div>
+        <div class="titles"><div class="title">${esc(c.title || tp.title)}</div><div class="subtitle">${esc(sub)}</div></div></div>`;
+    if (!d) {
+      this._paint(`<style>${BASE_CSS}${PROGRESS_CSS}</style><ha-card${this._accentStyle()}>${head(tp.range(Number(c.days) || 365))}
+        <div class="state" role="status">${this._error ? `<b>${esc(t.unavailable)}</b><span>${esc(this._error)}</span>` : `<span>${esc(t.loading)}</span>`}</div></ha-card>`);
+      return;
+    }
+    const unit = d.unit || "kg";
+    const ex = Array.isArray(d.exercises) ? d.exercises : [];
+    if (!ex.some((e) => e.id === this._exId)) {
+      this._exId = (c.exercise && ex.some((e) => e.id === String(c.exercise))) ? String(c.exercise) : ex[0]?.id;
+    }
+    const cur = ex.find((e) => e.id === this._exId);
+    const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "±");
+    const delta = (v, pct) => `${sign(v)}${num(h, Math.abs(v))} ${unit}${pct != null ? ` (${sign(pct)}${num(h, Math.abs(pct))} %)` : ""}`;
+
+    let strength;
+    if (!cur) {
+      strength = `<div class="state"><span>${esc(tp.noData)}</span></div>`;
+    } else {
+      const pts = cur.series.map((p) => ({ d: p.d, v: p.v }));
+      const name = exName(h, cur) || "?";
+      strength = `
+        ${ex.length > 1 ? `<div class="tabs" role="tablist" aria-label="${esc(tp.exercises)}">${ex.map((e) => `
+          <button role="tab" class="tab${e.id === this._exId ? " on" : ""}" aria-selected="${e.id === this._exId}" data-ex="${esc(e.id)}" data-fk="ex-${esc(e.id)}">${esc(exName(h, e) || "?")}</button>`).join("")}</div>` : ""}
+        <div class="kpi">
+          <div><span class="sl">${esc(tp.oneRm)}</span><b>${esc(num(h, cur.current))} ${esc(unit)}</b>
+            <span class="chg ${cur.change > 0 ? "up" : cur.change < 0 ? "down" : ""}">${esc(delta(cur.change, cur.change_pct))}</span></div>
+          <div class="right"><span class="sl">${esc(tp.best)}</span><b>${esc(num(h, cur.best))} ${esc(unit)}</b>
+            <span class="muted">${esc(tp.sessions(cur.sessions))}</span></div>
+        </div>
+        <div class="plot">${lineChart(pts, { label: tp.chart(name, `${num(h, pts[0].v)} ${unit}`, `${num(h, cur.current)} ${unit}`) })}</div>
+        <div class="axis"><span>${esc(shortDate(h, pts[0].d, { day: "numeric", month: "short", year: "numeric" }))}</span><span>${esc(shortDate(h, pts[pts.length - 1].d, { day: "numeric", month: "short", year: "numeric" }))}</span></div>`;
+    }
+
+    const w = d.weight || {};
+    const ws = Array.isArray(w.series) ? w.series : [];
+    let weight = "";
+    if (c.show_weight !== false && ws.length) {
+      const goal = typeof w.goal === "number" ? w.goal : null;
+      const diff = goal != null && w.current != null ? Math.round((w.current - goal) * 10) / 10 : null;
+      const goalTxt = goal == null ? "" : diff <= 0 ? tp.atGoal : tp.toGoal(`${num(h, diff)} ${unit}`);
+      weight = `<section class="sec">
+          <div class="sech"><ha-icon icon="mdi:scale-bathroom"></ha-icon><span>${esc(tp.weight)}</span>
+            <b>${esc(num(h, w.current))} ${esc(unit)}</b>
+            ${w.start != null && ws.length > 1 ? `<span class="chg">${esc(delta(Math.round((w.current - w.start) * 10) / 10, null))}</span>` : ""}</div>
+          <div class="plot small">${lineChart(ws.map((p) => ({ d: p.d, v: p.w })), { goal, height: 64, label: tp.weight })}</div>
+          ${goal != null ? `<div class="goalrow"><span class="gl"></span>${esc(tp.goal)} ${esc(num(h, goal))} ${esc(unit)} · ${esc(goalTxt)}</div>` : ""}
+        </section>`;
+    }
+
+    let prs = "";
+    if (c.show_prs !== false) {
+      const list = (Array.isArray(d.prs) ? d.prs : []).slice(0, Math.max(1, Number(c.pr_limit) || 5));
+      prs = `<section class="sec"><div class="sech"><ha-icon icon="mdi:trophy-outline"></ha-icon><span>${esc(tp.prs)}</span></div>
+        ${list.length ? `<ol class="prs">${list.map((p) => `<li>
+            <span class="pd">${esc(shortDate(h, p.date))}</span>
+            <span class="pr">${(p.records || []).map((r) => `<span class="rec"><span class="rn">${esc(exName(h, r) || "?")}</span>${r.weight != null
+              ? `<b>${esc(num(h, r.weight))} ${esc(unit)}${r.reps ? ` × ${esc(r.reps)}` : ""}</b>` : ""}</span>`).join("")}</span>
+          </li>`).join("")}</ol>` : `<div class="muted">${esc(tp.noPrs)}</div>`}
+      </section>`;
+    }
+
+    this._paint(`<style>${BASE_CSS}${PROGRESS_CSS}</style>
+      <ha-card${this._accentStyle()}>
+        ${head(tp.range(d.days || Number(c.days) || 365))}
+        ${strength}${weight}${prs}
+      </ha-card>`);
+    this.shadowRoot.querySelectorAll("[data-ex]").forEach((b) => b.addEventListener("click", () => {
+      this._exId = b.dataset.ex;
+      this._paintProgress();
+    }));
+  }
+}
+
+const PROGRESS_CSS = `
+  .tabs { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -2px; padding:2px; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tab { border:none; cursor:pointer; white-space:nowrap; font-size:12px; font-weight:500; padding:5px 11px; border-radius:999px;
+         background: var(--og-surface-2); color: var(--og-muted); transition: background .15s, color .15s; }
+  .tab.on { color: var(--og-accent); background: color-mix(in srgb, var(--og-accent) 18%, transparent); }
+  .kpi { display:flex; justify-content:space-between; gap:12px; }
+  .kpi > div { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .kpi .right { align-items:flex-end; text-align:right; }
+  .kpi b { font-size:22px; font-weight:500; line-height:1.2; font-variant-numeric: tabular-nums; }
+  .sl { font-size:12px; color: var(--og-muted); }
+  .muted { font-size:12px; color: var(--og-muted); }
+  .chg { font-size:12px; font-weight:500; color: var(--og-muted); }
+  .chg.up { color: var(--og-good); }
+  .chg.down { color: var(--og-bad); }
+  .plot { position:relative; height:96px; }
+  .plot.small { height:64px; }
+  .chart { display:block; width:100%; height:100%; overflow:visible; }
+  .chart .line { fill:none; stroke: var(--og-accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; vector-effect: non-scaling-stroke; }
+  .chart .area { fill: color-mix(in srgb, var(--og-accent) 14%, transparent); stroke:none; }
+  .chart .goal { stroke: var(--og-muted); stroke-width:1; stroke-dasharray:4 4; vector-effect: non-scaling-stroke; }
+  .dotlast { position:absolute; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; background: var(--og-accent);
+             box-shadow: 0 0 0 3px color-mix(in srgb, var(--og-accent) 25%, transparent); pointer-events:none; }
+  .axis { display:flex; justify-content:space-between; font-size:11px; color: var(--og-muted); margin-top:-8px; }
+  .sec { display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--og-divider); }
+  .sech { display:flex; align-items:center; gap:8px; font-size:14px; }
+  .sech ha-icon { --mdc-icon-size:18px; color: var(--og-accent); }
+  .sech span:first-of-type { flex:1; }
+  .sech b { font-weight:500; font-variant-numeric: tabular-nums; }
+  .goalrow { display:flex; align-items:center; gap:6px; font-size:12px; color: var(--og-muted); }
+  .goalrow .gl { width:16px; border-top:1px dashed var(--og-muted); }
+  .prs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+  .prs li { display:grid; grid-template-columns: 56px minmax(0,1fr); gap:10px; padding:7px 0; align-items:baseline; }
+  .prs li + li { box-shadow: 0 -1px 0 var(--og-divider); }
+  .pd { font-size:12px; color: var(--og-muted); white-space:nowrap; }
+  .pr { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .rec { display:flex; gap:8px; align-items:baseline; font-size:13px; min-width:0; }
+  .rec .rn { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rec b { flex:none; font-weight:500; white-space:nowrap; font-variant-numeric: tabular-nums; }
+  @container (max-width: 300px) { .kpi b { font-size:18px; } }
+`;
+
+customElements.define(PROGRESS_TAG, OpenGymProgressCard);
+
 // --- Editors -------------------------------------------------------------------
 
 /** ha-form based editor; writes only keys the user actually set (keeps YAML tidy). */
@@ -1509,6 +1731,29 @@ class OpenGymNextCardEditor extends OpenGymEditorBase {
 }
 customElements.define("opengym-next-card-editor", OpenGymNextCardEditor);
 
+class OpenGymProgressCardEditor extends OpenGymEditorBase {
+  static get defaults() { return PROGRESS_DEFAULTS; }
+  _schema() {
+    return [
+      { name: "entity", required: true, selector: ENTITY_SELECTOR },
+      { name: "title", selector: { text: {} } },
+      { type: "grid", name: "", schema: [
+        { name: "days", selector: { number: { min: 7, max: 3650, mode: "box" } } },
+        { name: "exercises", selector: { number: { min: 1, max: 20, mode: "box" } } },
+      ] },
+      { name: "exercise", selector: { text: {} } },
+      { type: "grid", name: "", schema: [
+        { name: "show_weight", selector: { boolean: {} } },
+        { name: "show_prs", selector: { boolean: {} } },
+      ] },
+      { name: "pr_limit", selector: { number: { min: 1, max: 12, mode: "box" } } },
+      { name: "accent", selector: { text: {} } },
+    ];
+  }
+  _labels() { const L = super._labels(); return { ...L, days: L.days_range }; }
+}
+customElements.define("opengym-progress-card-editor", OpenGymProgressCardEditor);
+
 window.customCards = window.customCards || [];
 for (const card of [
   {
@@ -1530,6 +1775,13 @@ for (const card of [
     name: "openGym Next Workout Card",
     preview: true,
     description: "Nächstes Training: Routine, Übungen mit Sätzen/Wiederholungen/Gewicht, Live-Fortschritt und Pausentimer-Knopf.",
+    documentationURL: "https://github.com/JImmyB0nes/OpenGym-HomeAssistant",
+  },
+  {
+    type: PROGRESS_TAG,
+    name: "openGym Progress Card",
+    preview: true,
+    description: "Fortschritt: 1RM-Verlauf pro Übung, Körpergewicht gegen das Ziel und eine Zeitleiste deiner Rekorde.",
     documentationURL: "https://github.com/JImmyB0nes/OpenGym-HomeAssistant",
   },
 ]) {

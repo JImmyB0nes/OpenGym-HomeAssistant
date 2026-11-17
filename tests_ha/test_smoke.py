@@ -1,8 +1,8 @@
 """Smoke test of openGym in a real Home Assistant core with a mocked openGym API.
 
-Not part of CI (needs pytest-homeassistant-custom-component):
+Runs in CI (job "tests-ha"). Locally:
 
-    pip install pytest-homeassistant-custom-component
+    pip install -r tests_ha/requirements.txt
     pytest tests_ha -q
 """
 from __future__ import annotations

@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import logic
 from .const import MUSCLES, RECOVERY_DAYS
-from .device_info import open_gym_device_info, prune_entities
+from .device_info import open_gym_device_info, prune_entities, suggested_entity_id
 from .coordinator import OpenGymDataCoordinator
 
 
@@ -37,8 +37,8 @@ async def async_setup_entry(
     elif coordinator.is_admin is False:
         prune_entities(hass, entry, "binary_sensor", ("active_workout",))
     entities += [
-        MuscleRecoverySensor(coordinator, entry, muscle, label)
-        for muscle, label in MUSCLES.items()
+        MuscleRecoverySensor(coordinator, entry, muscle)
+        for muscle in MUSCLES
     ]
     async_add_entities(entities)
 
@@ -48,13 +48,13 @@ class RestDaySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntit
 
     _attr_has_entity_name = True
     _attr_translation_key = "rest_day"
-    _attr_name = "Rest day"
     _attr_icon = "mdi:couch"
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_rest_day"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "binary_sensor", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -77,13 +77,13 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
 
     _attr_has_entity_name = True
     _attr_translation_key = "active_workout"
-    _attr_name = "Active workout"
     _attr_icon = "mdi:dumbbell"
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_active_workout"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "binary_sensor", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -100,7 +100,7 @@ class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySenso
         presence = self.coordinator.presence or {}
         state = self.coordinator.data
         attrs: dict[str, Any] = {
-            "rest_default": state.rest_seconds() if state else None,
+            "rest_default": self.coordinator.rest_default_seconds() if state else None,
             "rest_timer_ends": (
                 self.coordinator.rest_timer_end.isoformat()
                 if self.coordinator.rest_timer_end
@@ -133,6 +133,7 @@ class _WorkedOutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEn
         self._attr_translation_key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "binary_sensor", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -144,7 +145,6 @@ class WorkedOutTodaySensor(_WorkedOutSensor):
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry, "worked_out_today")
-        self._attr_name = "Heute trainiert"
 
     @property
     def is_on(self) -> bool | None:
@@ -160,7 +160,6 @@ class WorkedOutThisWeekSensor(_WorkedOutSensor):
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry, "worked_out_this_week")
-        self._attr_name = "Diese Woche trainiert"
 
     @property
     def is_on(self) -> bool | None:
@@ -179,13 +178,13 @@ class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySens
     _attr_has_entity_name = True
     _attr_icon = "mdi:sleep"
 
-    def __init__(self, coordinator, entry, muscle: str, label: str) -> None:
+    def __init__(self, coordinator, entry, muscle: str) -> None:
         super().__init__(coordinator)
         self._muscle = muscle
         self._attr_translation_key = f"muscle_{muscle.replace('-', '_')}_recovering"
-        self._attr_name = f"{label} recovering"
         self._attr_unique_id = f"{entry.entry_id}_muscle_{muscle}_recovering"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "binary_sensor", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -214,12 +213,12 @@ class _NudgeBase(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator, entry, key: str, name: str) -> None:
+    def __init__(self, coordinator, entry, key: str) -> None:
         super().__init__(coordinator)
         self._attr_translation_key = key
-        self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = open_gym_device_info(entry)
+        self.entity_id = suggested_entity_id(entry, "binary_sensor", self._attr_translation_key)
 
     @property
     def available(self) -> bool:
@@ -240,7 +239,7 @@ class DayDoneSensor(_NudgeBase):
     _attr_icon = "mdi:check-decagram"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "day_done", "Today done")
+        super().__init__(coordinator, entry, "day_done")
 
     @property
     def is_on(self) -> bool | None:
@@ -254,7 +253,7 @@ class NudgePendingSensor(_NudgeBase):
     _attr_icon = "mdi:bell-ring"
 
     def __init__(self, coordinator, entry) -> None:
-        super().__init__(coordinator, entry, "nudge_pending", "Workout reminder due")
+        super().__init__(coordinator, entry, "nudge_pending")
 
     @property
     def is_on(self) -> bool | None:
