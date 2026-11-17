@@ -141,6 +141,26 @@ class OpenGymState:
         w = self.last_workout()
         return _day(w.get("d")) if w else None
 
+    @staticmethod
+    def _set_1rm(s: dict[str, Any]) -> float | None:
+        """Epley estimate of one logged set, the same everywhere (sensor, card,
+        statistics). Warm-ups, sets explicitly not done and empty sets count
+        for nothing."""
+        if not isinstance(s, dict) or s.get("warmup") is True or s.get("phase") == "warmup":
+            return None
+        if s.get("done") is False:
+            return None
+        sides = s.get("sides")
+        if s.get("done") is None and isinstance(sides, dict) and sides and not any(
+            (sides.get(side) or {}).get("done") is True for side in ("L", "R")
+        ):
+            return None
+        w, r = s.get("w"), s.get("r")
+        if not isinstance(w, (int, float)) or isinstance(w, bool) or w <= 0:
+            return None
+        reps = r if isinstance(r, (int, float)) and not isinstance(r, bool) and r > 0 else 0
+        return w * (1 + reps / EPLEY_K)
+
     def best_1rm(self) -> dict[str, float]:
         """Epley 1RM estimate per exercise id, best set wins."""
         best: dict[str, float] = {}
@@ -148,10 +168,9 @@ class OpenGymState:
             for entry in workout.get("entries") or []:
                 ex_id = str(entry.get("id"))
                 for s in entry.get("sets") or []:
-                    w, r = s.get("w"), s.get("r")
-                    if not isinstance(w, (int, float)) or not w:
+                    est = self._set_1rm(s)
+                    if not est:
                         continue
-                    est = w * (1 + (r or 0) / EPLEY_K)
                     if est > best.get(ex_id, 0):
                         best[ex_id] = est
         return best
@@ -414,10 +433,9 @@ class OpenGymState:
                 if not info:
                     continue
                 for s in entry.get("sets") or []:
-                    w, r = s.get("w"), s.get("r")
-                    if not isinstance(w, (int, float)) or not w:
+                    est = self._set_1rm(s)
+                    if not est:
                         continue
-                    est = w * (1 + (r or 0) / EPLEY_K)
                     for muscle, weight in self._entry_muscles(info).items():
                         if weight >= 1.0:
                             best[muscle] = max(best.get(muscle, 0), est)
@@ -604,10 +622,9 @@ class OpenGymState:
                     if not info:
                         continue
                     for s in entry.get("sets") or []:
-                        w, r = s.get("w"), s.get("r")
-                        if not isinstance(w, (int, float)) or not w:
+                        est = self._set_1rm(s)
+                        if not est:
                             continue
-                        est = w * (1 + (r or 0) / EPLEY_K)
                         for muscle, weight in self._entry_muscles(info).items():
                             if weight >= 1.0:
                                 window_best[muscle] = max(window_best.get(muscle, 0), est)
@@ -637,9 +654,8 @@ class OpenGymState:
                     key = self.exercise_name(entry.get("id"), self.lang, entry)
                     exercises[key] = exercises.get(key, 0) + weight * sets
                 for s in entry.get("sets") or []:
-                    w, r = s.get("w"), s.get("r")
-                    if isinstance(w, (int, float)) and w:
-                        best = max(best, w * (1 + (r or 0) / EPLEY_K))
+                    if est := self._set_1rm(s):
+                        best = max(best, est)
         return {
             "week_sets": round(week.get(muscle, 0), 1),
             "target": list(targets.get(muscle, [0, 0])),
@@ -653,15 +669,6 @@ class OpenGymState:
 
     # --- progress series (long-term statistics, progress card) ----------------
 
-    @staticmethod
-    def _set_1rm(s: dict[str, Any]) -> float | None:
-        """Epley estimate of one logged set (warm-ups and empty sets skipped)."""
-        if s.get("warmup") is True or s.get("phase") == "warmup":
-            return None
-        w, r = s.get("w"), s.get("r")
-        if not isinstance(w, (int, float)) or isinstance(w, bool) or w <= 0:
-            return None
-        return w * (1 + (r or 0) / EPLEY_K) if (r or 0) > 1 else float(w)
 
     def daily_weights(self) -> list[tuple[date, float]]:
         """One body-weight value per day (the day's last weigh-in)."""

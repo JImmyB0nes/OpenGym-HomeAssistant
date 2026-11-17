@@ -14,6 +14,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv, intent
 from homeassistant.util import dt as dt_util
 
@@ -75,7 +76,9 @@ class _OpenGymHandler(intent.IntentHandler):
         slots = self.async_validate_slots(intent_obj.slots)
         try:
             text = await self._answer(intent_obj.hass, runtime, slots, lang)
-        except OpenGymError:
+        except (OpenGymError, HomeAssistantError):
+            # unreachable, revision conflict, rejected write: say so instead
+            # of the agent's generic "an unexpected error occurred"
             text = logic.speech("no_entry", lang)
         response.async_set_speech(text)
         return response

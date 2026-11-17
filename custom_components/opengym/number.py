@@ -50,9 +50,21 @@ class RestDurationNumber(CoordinatorEntity[OpenGymDataCoordinator], RestoreNumbe
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        # Restore only a value set in HA; a value that merely showed
+        # openGym's own rest setting must keep following that setting.
+        last_state = await self.async_get_last_state()
         last = await self.async_get_last_number_data()
-        if last is not None and last.native_value:
+        if (
+            last is not None
+            and last.native_value
+            and last_state is not None
+            and last_state.attributes.get("source") == "home_assistant"
+        ):
             self.coordinator.rest_override = int(last.native_value)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {"source": "home_assistant" if self.coordinator.rest_override else "opengym"}
 
     @property
     def available(self) -> bool:

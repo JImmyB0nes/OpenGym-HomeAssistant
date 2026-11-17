@@ -332,7 +332,7 @@
         },
         "unit": {
           "name": "Unit",
-          "description": "kg or lb."
+          "description": "Unit of the weight you enter. Empty: your openGym unit. A different unit is converted; openGym's unit setting never changes."
         },
         "date": {
           "name": "Date",

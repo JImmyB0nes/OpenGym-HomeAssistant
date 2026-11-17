@@ -240,7 +240,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def handle_log_weighin(call: ServiceCall) -> None:
         """Write a weigh-in into openGym's state document."""
         weight: float = call.data["weight"]
-        unit: str = call.data.get("unit", "kg")
+        # no unit given: the weight is in the profile's own unit
+        unit: str | None = call.data.get("unit")
         day: str = str(call.data.get("date") or dt_util.now().date())
         runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
         try:
@@ -423,7 +424,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             schema=vol.Schema(
                 {
                     vol.Required("weight"): vol.Coerce(float),
-                    vol.Optional("unit", default="kg"): vol.In(["kg", "lb"]),
+                    vol.Optional("unit"): vol.In(["kg", "lb"]),
                     vol.Optional("date"): cv.date,
                     vol.Optional("entry_id"): cv.string,
                 }

@@ -24,10 +24,14 @@ intents:
   OpenGymLogWeight:
     data:
       - sentences:
-          - "(trag|trage) {weight} [{unit}] [(als gewicht|beim gewicht)] [in opengym] ein"
+          # every pattern names the weight or a unit, so "trag Termin ein" or
+          # "notiere Milch" never end up as a weigh-in
+          - "(trag|trage) {weight} {unit} [(als gewicht|beim gewicht)] [in opengym] ein"
+          - "(trag|trage) [mein|das] gewicht [von] {weight} [{unit}] [in opengym] ein"
           - "ich wiege [heute] {weight} [{unit}]"
           - "[mein] gewicht [ist|heute] {weight} [{unit}]"
-          - "(notiere|speichere|logge) [mein gewicht] {weight} [{unit}]"
+          - "(notiere|speichere|logge) [mein|das] gewicht [von] {weight} [{unit}]"
+          - "(notiere|speichere|logge) {weight} {unit}"
   OpenGymStartRestTimer:
     data:
       - sentences:

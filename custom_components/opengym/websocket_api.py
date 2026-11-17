@@ -21,6 +21,9 @@ from .const import DOMAIN, INTEGRATION_VERSION, MAP_SLUGS
 
 _LOGGER = logging.getLogger(__name__)
 
+# Home Assistant has no ERR_NOT_READY constant; send_error takes any code string.
+ERR_NOT_READY = "not_ready"
+
 
 @callback
 def async_setup_ws(hass: HomeAssistant) -> None:
@@ -66,7 +69,7 @@ def ws_detail(
     )
     state = coordinator.data if coordinator else None
     if state is None:
-        connection.send_error(msg["id"], websocket_api.ERR_NOT_READY, "openGym data not ready")
+        connection.send_error(msg["id"], ERR_NOT_READY, "openGym data not ready")
         return
     muscle = msg.get("muscle")
     if muscle not in MAP_SLUGS:
@@ -115,7 +118,7 @@ def ws_progress(
         connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "no openGym entry")
         return
     if coordinator.data is None:
-        connection.send_error(msg["id"], websocket_api.ERR_NOT_READY, "openGym data not ready")
+        connection.send_error(msg["id"], ERR_NOT_READY, "openGym data not ready")
         return
     result = coordinator.data.progress(date.today(), msg["days"], msg["exercises"])
     result["entry_id"] = entry.entry_id

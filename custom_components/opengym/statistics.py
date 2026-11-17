@@ -89,14 +89,18 @@ def _meta(statistic_id: str, name: str, unit: str, *, mean: bool) -> dict[str, A
         "has_sum": not mean,
         "has_mean": mean,
     }
-    try:  # HA >= 2025.x: mean_type / unit_class replace has_mean
-        from homeassistant.components.recorder.models import StatisticMeanType
-
-        meta.pop("has_mean")
-        meta["mean_type"] = StatisticMeanType.ARITHMETIC if mean else StatisticMeanType.NONE
-        meta["unit_class"] = "mass"
+    try:  # newer cores: mean_type replaces has_mean, later unit_class joins it
+        from homeassistant.components.recorder.models import (
+            StatisticMeanType,
+            StatisticMetaData,
+        )
     except ImportError:  # pragma: no cover - older cores
-        pass
+        return meta
+    meta.pop("has_mean")
+    meta["mean_type"] = StatisticMeanType.ARITHMETIC if mean else StatisticMeanType.NONE
+    # only where the recorder knows the key: an unknown key would break the import
+    if "unit_class" in getattr(StatisticMetaData, "__annotations__", {}):
+        meta["unit_class"] = "mass"
     return meta
 
 

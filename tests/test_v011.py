@@ -128,3 +128,30 @@ class Progress(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixes(unittest.TestCase):
+    """0.11.1: bugs found before going live."""
+
+    def test_weighin_never_changes_profile_unit(self):
+        doc = {"unit": "lb", "bodyweight": []}
+        logic.set_weighin(doc, "2026-11-18", 80.0, "kg")
+        self.assertEqual(doc["unit"], "lb")
+        self.assertEqual(doc["bodyweight"], [{"d": "2026-11-18", "w": 176.4}])
+        logic.set_weighin(doc, "2026-11-18", 175.0)  # no unit: the profile's own
+        self.assertEqual(doc["bodyweight"], [{"d": "2026-11-18", "w": 175.0}])
+        kg = {"bodyweight": []}  # no unit stored: openGym's default kg
+        logic.set_weighin(kg, "2026-11-18", 80.44, None)
+        self.assertNotIn("unit", kg)
+        self.assertEqual(kg["bodyweight"][0]["w"], 80.4)
+
+    def test_1rm_ignores_warmups_and_undone_sets(self):
+        s = OpenGymState({"workouts": [{"d": "2026-11-10", "entries": [{"id": "0025", "sets": [
+            {"w": 200, "r": 5, "done": False},
+            {"w": 150, "r": 1, "warmup": True},
+            {"w": 120, "r": 5, "sides": {"L": {"done": False}, "R": {}}},
+            {"w": 90, "r": 3, "done": True},
+        ]}]}]})
+        self.assertEqual(round(s.best_1rm()["0025"], 1), 99.0)
+        self.assertEqual(s.exercise_1rm_series("0025"), [(date(2026, 11, 10), 99.0)])
+        self.assertEqual(round(s.best_muscle_1rm()["chest"], 1), 99.0)

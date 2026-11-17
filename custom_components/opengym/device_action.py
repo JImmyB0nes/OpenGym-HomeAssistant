@@ -21,7 +21,7 @@ ACTION_SCHEMA = cv.DEVICE_ACTION_BASE_SCHEMA.extend(
     {
         vol.Required(CONF_TYPE): vol.In([SERVICE_LOG_WEIGHIN]),
         vol.Required("weight"): vol.Coerce(float),
-        vol.Optional("unit", default="kg"): vol.In(["kg", "lb"]),
+        vol.Optional("unit"): vol.In(["kg", "lb"]),
         vol.Optional("date"): cv.date,
     }
 )
@@ -60,7 +60,7 @@ async def async_get_action_capabilities(
         "fields": vol.Schema(
             {
                 vol.Required("weight"): vol.Coerce(float),
-                vol.Optional("unit", default="kg"): vol.In(["kg", "lb"]),
+                vol.Optional("unit"): vol.In(["kg", "lb"]),
                 vol.Optional("date"): cv.date,
             }
         )
@@ -81,7 +81,7 @@ async def async_call_action_from_config(
         SERVICE_LOG_WEIGHIN,
         {
             "weight": config["weight"],
-            "unit": config.get("unit", "kg"),
+            **({"unit": config["unit"]} if config.get("unit") else {}),
             "entry_id": entry.entry_id,
             # the service schema rejects date=None; only pass a real date
             **({"date": config["date"]} if config.get("date") else {}),

@@ -23,7 +23,10 @@ intents:
   OpenGymLogWeight:
     data:
       - sentences:
-          - "(log|record|save) [my weight [as]] {weight} [{unit}] [in opengym]"
+          # every pattern names the weight or a unit, so "record a video" or
+          # "save the date" never end up as a weigh-in
+          - "(log|record|save) [my] weight [as|of] {weight} [{unit}] [in opengym]"
+          - "(log|record|save) {weight} {unit} [in opengym]"
           - "I weigh {weight} [{unit}] [today]"
           - "my weight is {weight} [{unit}] [today]"
   OpenGymStartRestTimer:
