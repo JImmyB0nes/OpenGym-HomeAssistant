@@ -8,7 +8,7 @@
 
 [![Release](https://img.shields.io/github/v/release/JImmyB0nes/OpenGym-HomeAssistant?label=Release&color=a3e635)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/releases/latest)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-%E2%89%A5%202024.11-18bcf2?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
-[![HACS](https://img.shields.io/badge/HACS-Custom-41bdf5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/)
+[![HACS](https://img.shields.io/badge/HACS-Store-41bdf5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/)
 [![CI](https://img.shields.io/github/actions/workflow/status/JImmyB0nes/OpenGym-HomeAssistant/ci.yml?branch=main&label=CI)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/actions/workflows/ci.yml)
 [![Lizenz](https://img.shields.io/github/license/JImmyB0nes/OpenGym-HomeAssistant?label=Lizenz)](LICENSE)
 
@@ -190,13 +190,19 @@ Welche URL die Integration verwendet, zeigt der Einrichtungsdialog in Schritt 6 
 
 ### 5. Integration installieren
 
-**Per HACS (empfohlen)**
+**Per HACS (empfohlen)** — openGym ist in HACS gelistet, du brauchst kein eigenes Repository.
 
 [![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
 
-1. HACS → **⋮ → Benutzerdefinierte Repositories** → `https://github.com/JImmyB0nes/OpenGym-HomeAssistant`, Typ **Integration** → **Hinzufügen**
-2. *openGym* suchen → **Herunterladen**
-3. **Home Assistant neu starten** (Einstellungen → System → ⏻ → Home Assistant neu starten)
+1. HACS → **Integrationen** → **Exploren** → *openGym* suchen → **Herunterladen**
+2. **Home Assistant neu starten** (Einstellungen → System → ⏻ → Home Assistant neu starten)
+
+<details>
+<summary>Falls openGym in der Suche nicht auftaucht (ältere HACS-Version)</summary>
+
+Repository manuell hinzufügen: HACS → **⋮ → Benutzerdefinierte Repositories** → `https://github.com/JImmyB0nes/OpenGym-HomeAssistant`, Typ **Integration** → **Hinzufügen**, danach *openGym* → **Herunterladen**.
+
+</details>
 
 <details>
 <summary>Manuell (ohne HACS)</summary>
