@@ -155,3 +155,22 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual(round(s.best_1rm()["0025"], 1), 99.0)
         self.assertEqual(s.exercise_1rm_series("0025"), [(date(2026, 11, 10), 99.0)])
         self.assertEqual(round(s.best_muscle_1rm()["chest"], 1), 99.0)
+
+
+class MoreReviewFixes(unittest.TestCase):
+    def test_two_workouts_one_day_add_up(self):
+        monday = TODAY - timedelta(days=TODAY.weekday())
+        s = OpenGymState({"workouts": [
+            {"d": monday.isoformat(), "name": "Push", "vol": 1000, "entries": [{"id": "1", "sets": [{}, {}]}]},
+            {"d": monday.isoformat(), "name": "Cardio", "vol": 0, "entries": [{"id": "2", "sets": [{}]}]},
+        ]})
+        done = s.day_view(TODAY)[0]["done"]
+        self.assertEqual(done, {"name": "Push + Cardio", "volume": 1000, "sets": 3})
+
+    def test_coach_matches_numeric_exercise_ids(self):
+        doc = {"routines": [{"id": "r", "ex": [{"id": 25, "sets": 3}]}]}
+        pending = {"id": "p", "changes": [{"id": "c", "type": "sets", "before": 3, "after": 4,
+                                           "target": {"routineId": "r", "exId": "25"}}]}
+        accepted, stale = logic.apply_coach_changes(doc, pending, 1)
+        self.assertEqual((accepted, stale), (["c"], []))
+        self.assertEqual(doc["routines"][0]["ex"][0]["sets"], 4)

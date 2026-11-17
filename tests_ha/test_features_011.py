@@ -323,3 +323,25 @@ async def test_weight_sentences_do_not_hijack(hass: HomeAssistant, aioclient_moc
     result = await conversation.async_converse(hass, "log my weight as 80.4", None, Context(), language="en")
     assert result.response.speech["plain"]["speech"].startswith("Logged 80.4 kg")
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_today_follows_home_assistant_time_zone(hass: HomeAssistant, aioclient_mock, freezer) -> None:
+    """'Today' is Home Assistant's local day, not the container's (often UTC)."""
+    from test_smoke import _mock_all, _entry, _state
+
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-11-16T23:30:00+00:00")  # Tuesday 00:30 in Berlin, Monday in UTC
+    doc = _state()
+    doc["workouts"] = [{"d": "2026-11-17", "name": "Push", "vol": 1000, "entries": []}]
+    aioclient_mock.get(f"{URL}/api/data", headers=H, json={"state": doc, "rev": 7})
+    _mock_all(aioclient_mock)
+    entry = _entry()
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    ids = _ids(hass, entry)
+    assert hass.states.get(ids["worked_out_today"]).state == "on"
+    assert hass.states.get(ids["week_workouts"]).state == "1"
+    assert hass.states.get(ids["days_since_workout"]).state == "0"
+    assert await hass.config_entries.async_unload(entry.entry_id)

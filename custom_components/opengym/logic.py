@@ -208,7 +208,7 @@ def _coach_current(state: dict[str, Any], change: dict[str, Any]) -> Any:
         return None if name is None else str(name)[:ROUTINE_NAME_SEEN]
     if change.get("type") in COACH_ROUTINE_FIELDS:
         return routine.get(COACH_ROUTINE_FIELDS[change["type"]])
-    ex = next((e for e in routine.get("ex") or [] if e.get("id") == target.get("exId")), None)
+    ex = next((e for e in routine.get("ex") or [] if str(e.get("id")) == str(target.get("exId"))), None)
     if ex is None:
         return KeyError
     return ex.get(COACH_SCALAR_FIELDS[change["type"]])
@@ -257,7 +257,7 @@ def apply_coach_changes(
         elif change["type"] in COACH_ROUTINE_FIELDS:
             routine[COACH_ROUTINE_FIELDS[change["type"]]] = change.get("after")
         else:
-            ex = next(e for e in routine.get("ex") or [] if e.get("id") == target.get("exId"))
+            ex = next(e for e in routine.get("ex") or [] if str(e.get("id")) == str(target.get("exId")))
             ex[COACH_SCALAR_FIELDS[change["type"]]] = change.get("after")
         accepted.append(str(change.get("id")))
     return accepted, stale

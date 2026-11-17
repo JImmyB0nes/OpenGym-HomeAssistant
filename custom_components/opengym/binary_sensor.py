@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import logic
 from .const import MUSCLES, RECOVERY_DAYS
@@ -65,7 +66,7 @@ class RestDaySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntit
         state = self.coordinator.data
         if state is None:
             return None
-        return state.routine_for(date.today()) is None
+        return state.routine_for(dt_util.now().date()) is None
 
 
 class ActiveWorkoutSensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
@@ -152,7 +153,7 @@ class WorkedOutTodaySensor(_WorkedOutSensor):
         if state is None:
             return None
         day = state.last_workout_day()
-        return day == date.today() if day else False
+        return day == dt_util.now().date() if day else False
 
 
 class WorkedOutThisWeekSensor(_WorkedOutSensor):
@@ -169,7 +170,7 @@ class WorkedOutThisWeekSensor(_WorkedOutSensor):
         day = state.last_workout_day()
         if not day:
             return False
-        return (date.today() - day).days < 7
+        return (dt_util.now().date() - day).days < 7
 
 
 class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySensorEntity):
@@ -195,7 +196,7 @@ class MuscleRecoverySensor(CoordinatorEntity[OpenGymDataCoordinator], BinarySens
         state = self.coordinator.data
         if state is None:
             return None
-        days = state.muscle_days(date.today()).get(self._muscle)
+        days = state.muscle_days(dt_util.now().date()).get(self._muscle)
         if days is None:
             return None
         return 0 <= days <= RECOVERY_DAYS

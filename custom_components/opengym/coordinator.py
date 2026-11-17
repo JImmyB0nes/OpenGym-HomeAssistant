@@ -7,7 +7,7 @@ the small live endpoints (presence, nudge-check, Coach, watch, integrations).
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
@@ -194,7 +194,7 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         if not self.nudge_supported:
             return
         try:
-            self.nudge = await self.client.nudge_check(date.today().isoformat())
+            self.nudge = await self.client.nudge_check(dt_util.now().date().isoformat())
         except OpenGymFeatureOffError:
             self.nudge_supported = False
             self.nudge = None
