@@ -174,3 +174,10 @@ class MoreReviewFixes(unittest.TestCase):
         accepted, stale = logic.apply_coach_changes(doc, pending, 1)
         self.assertEqual((accepted, stale), (["c"], []))
         self.assertEqual(doc["routines"][0]["ex"][0]["sets"], 4)
+
+
+class Plurals(unittest.TestCase):
+    def test_one_exercise(self):
+        nxt = {"name": "Push", "date": TODAY.isoformat(), "exercises": [1], "total_sets": 1}
+        self.assertEqual(logic.speech_next(nxt, TODAY, "de"), "Dein nächstes Training ist Push, heute. 1 Übung, 1 Satz.")
+        self.assertEqual(logic.speech_next(nxt, TODAY, "en"), "Your next workout is Push, today. 1 exercise, 1 set.")
