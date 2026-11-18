@@ -345,3 +345,18 @@ async def test_today_follows_home_assistant_time_zone(hass: HomeAssistant, aiocl
     assert hass.states.get(ids["week_workouts"]).state == "1"
     assert hass.states.get(ids["days_since_workout"]).state == "0"
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+@pytest.mark.parametrize("language", ["en", "de"])
+async def test_every_entity_has_a_name(hass: HomeAssistant, aioclient_mock, language) -> None:
+    """A missing translation would leave an entity called just 'openGym'."""
+    await hass.config.async_update(language=language)
+    entry = await _setup(hass, aioclient_mock)
+    reg = er.async_get(hass)
+    nameless = [
+        e.entity_id for e in er.async_entries_for_config_entry(reg, entry.entry_id)
+        if (s := hass.states.get(e.entity_id)) is None or s.name.strip() in ("openGym", "")
+    ]
+    assert not nameless, nameless
+    assert await hass.config_entries.async_unload(entry.entry_id)

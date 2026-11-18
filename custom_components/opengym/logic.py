@@ -766,6 +766,7 @@ _SPEECH = {
         "next_in": "Your next workout is {name}, in {n} days on {weekday}.",
         "next_none": "No workout is planned for the next two weeks.",
         "next_exercises": " {n} exercises, {sets} sets.",
+        "exercise_one": "exercise", "exercise_many": "exercises", "set_one": "set", "set_many": "sets",
         "week": "This week: {n} workouts, {volume} {unit} volume.",
         "week_one": "This week: 1 workout, {volume} {unit} volume.",
         "week_none": "No workout yet this week.",
@@ -790,6 +791,7 @@ _SPEECH = {
         "next_in": "Dein nächstes Training ist {name}, in {n} Tagen am {weekday}.",
         "next_none": "In den nächsten zwei Wochen ist kein Training geplant.",
         "next_exercises": " {n} Übungen, {sets} Sätze.",
+        "exercise_one": "Übung", "exercise_many": "Übungen", "set_one": "Satz", "set_many": "Sätze",
         "week": "Diese Woche: {n} Trainings, {volume} {unit} Volumen.",
         "week_one": "Diese Woche: 1 Training, {volume} {unit} Volumen.",
         "week_none": "Diese Woche hast du noch nicht trainiert.",
@@ -833,7 +835,9 @@ def speech_next(nxt: dict[str, Any] | None, today: date, lang: str | None) -> st
         text = speech("next_in", lang, name=name, n=n, weekday=weekday)
     exercises = nxt.get("exercises") or []
     if exercises:
-        text += speech("next_exercises", lang, n=len(exercises), sets=nxt.get("total_sets") or 0)
+        t = _SPEECH[_lang(lang)]
+        n, sets = len(exercises), int(nxt.get("total_sets") or 0)
+        text += f" {n} {t['exercise_one' if n == 1 else 'exercise_many']}, {sets} {t['set_one' if sets == 1 else 'set_many']}."
     return text
 
 

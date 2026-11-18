@@ -275,7 +275,7 @@ The integration ships four cards (`custom:opengym-muscle-card`, `custom:opengym-
   lovelace:
     mode: yaml
     resources:
-      - url: /opengym/opengym-muscle-card.js?v=0.11.1
+      - url: /opengym/opengym-muscle-card.js?v=0.11.2
         type: module
   ```
 

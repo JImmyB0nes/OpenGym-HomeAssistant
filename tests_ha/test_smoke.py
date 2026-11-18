@@ -8,7 +8,8 @@ Runs in CI (job "tests-ha"). Locally:
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -18,7 +19,11 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 URL = "https://og.test"
 H = {"Content-Type": "application/json"}
 WEBHOOK_ID = "abcdef0123457f3a"
-TODAY = date.today()
+# The integration's "today" is Home Assistant's local day; the test harness
+# runs Home Assistant in US/Pacific. Using the container's date.today() here
+# made the tests fail every day between 00:00 and 08:00 UTC.
+TEST_TIME_ZONE = "US/Pacific"
+TODAY = datetime.now(ZoneInfo(TEST_TIME_ZONE)).date()
 
 
 def _log(*args):

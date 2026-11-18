@@ -44,7 +44,7 @@
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.11.1";
+const CARD_VERSION = "0.11.2";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
@@ -85,7 +85,8 @@ const UI = {
       prs: "PRs (Woche)", hr: "Ø Puls", weight: "Gewicht", goal: (d) => `${d} zum Ziel`, atGoal: "Ziel erreicht",
       days: (n) => (n === 1 ? "1 Tag" : `${n} Tage`), weeks: (n) => (n === 1 ? "1 Woche" : `${n} Wochen`) },
     next: { title: "Nächstes Training", none: "Kein Training geplant", noneHint: "Genieß den Ruhetag.",
-      tomorrow: "morgen", inDays: (n) => `in ${n} Tagen`, exercises: "Übungen", sets: "Sätze", rest: "Pause",
+      tomorrow: "morgen", inDays: (n) => `in ${n} Tagen`, exercises: "Übungen", exerciseCount: (n) => (n === 1 ? "1 Übung" : `${n} Übungen`),
+      sets: "Sätze", setCount: (n) => (n === 1 ? "1 Satz" : `${n} Sätze`), rest: "Pause",
       startRest: "Pausentimer starten", restStarted: "Pausentimer läuft", more: (n) => `+ ${n} weitere`,
       progress: "Fortschritt", restEnds: "Pause endet" },
     live: "Training läuft",
@@ -123,7 +124,8 @@ const UI = {
       prs: "PRs (week)", hr: "Avg HR", weight: "Weight", goal: (d) => `${d} to goal`, atGoal: "Goal reached",
       days: (n) => (n === 1 ? "1 day" : `${n} days`), weeks: (n) => (n === 1 ? "1 week" : `${n} weeks`) },
     next: { title: "Next workout", none: "No workout planned", noneHint: "Enjoy the rest day.",
-      tomorrow: "tomorrow", inDays: (n) => `in ${n} days`, exercises: "Exercises", sets: "Sets", rest: "Rest",
+      tomorrow: "tomorrow", inDays: (n) => `in ${n} days`, exercises: "Exercises", exerciseCount: (n) => (n === 1 ? "1 exercise" : `${n} exercises`),
+      sets: "Sets", setCount: (n) => (n === 1 ? "1 set" : `${n} sets`), rest: "Rest",
       startRest: "Start rest timer", restStarted: "Rest timer running", more: (n) => `+ ${n} more`,
       progress: "Progress", restEnds: "Rest ends" },
     live: "Workout in progress",
@@ -1367,8 +1369,8 @@ class OpenGymNextCard extends OpenGymBase {
     const restEnds = restRaw ? new Date(restRaw) : null;
     const restLeft = restEnds ? Math.round((restEnds - Date.now()) / 1000) : 0;
     const chips = [
-      `${list.length} ${tn.exercises}`,
-      a.total_sets ? `${a.total_sets} ${tn.sets}` : "",
+      tn.exerciseCount(list.length),
+      a.total_sets ? tn.setCount(Number(a.total_sets)) : "",
       a.rest_sec ? `${tn.rest} ${a.rest_sec} s` : "",
     ].filter(Boolean);
     this._paint(`
