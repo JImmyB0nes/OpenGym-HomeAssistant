@@ -10,6 +10,7 @@ cheap to unit-test.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import logging
 from datetime import date, datetime, time, timedelta
@@ -101,12 +102,10 @@ class OpenGymState:
         return [w for w in self.workouts if (_day(w.get("d")) and start <= _day(w.get("d")) <= end)]
 
     def week_volume(self, today: date) -> float:
-        monday = today - timedelta(days=today.weekday())
-        return sum(w.get("vol") or 0 for w in self.workouts_between(monday, today))
+        return sum(w.get("vol") or 0 for w in self.workouts_between(self.week_start(today), today))
 
     def week_count(self, today: date) -> int:
-        monday = today - timedelta(days=today.weekday())
-        return len(self.workouts_between(monday, today))
+        return len(self.workouts_between(self.week_start(today), today))
 
     def streak(self, today: date) -> int:
         """Workout days in a row, counting back from today (or yesterday)."""
@@ -267,9 +266,8 @@ class OpenGymState:
 
     def week_streak(self, today: date) -> dict[str, Any]:
         """openGym's week streak (weeks in a row with a workout, freezes)."""
-        sunday_first = (self.raw.get("weekStart") or (self.raw.get("settings") or {}).get("weekStart")) == 0
         days = [d for w in self.workouts if (d := _day(w.get("d")))]
-        return logic.week_streak(days, today, 6 if sunday_first else 0)
+        return logic.week_streak(days, today, 6 if self.sunday_first else 0)
 
     def next_workout(self, today: date) -> dict[str, Any] | None:
         """The next planned session with its exercises, for the next-workout card."""
@@ -368,7 +366,17 @@ class OpenGymState:
                 n += 1
         return n
 
+    @property
+    def sunday_first(self) -> bool:
+        """openGym's `weekStart` setting: 0 = the week starts on Sunday."""
+        week_start = self.raw.get("weekStart")
+        if week_start is None:
+            week_start = (self.raw.get("settings") or {}).get("weekStart")
+        return week_start == 0
+
     def week_start(self, today: date) -> date:
+        if self.sunday_first:
+            return today - timedelta(days=(today.weekday() + 1) % 7)
         return today - timedelta(days=today.weekday())
 
     def week_sets(self, today: date, week_offset: int = 0) -> dict[str, float]:
@@ -683,6 +691,21 @@ class OpenGymState:
             if day and isinstance(w, (int, float)) and not isinstance(w, bool) and w > 0:
                 out[day] = float(w)
         return sorted(out.items())
+
+    def history_digest(self) -> str:
+        """Fingerprint of everything the statistics import feeds the recorder.
+
+        A rev bump from settings or a plan edit alone must not re-import the
+        whole history; only weigh-ins and workout history are hashed here.
+        """
+        h = hashlib.sha1()
+        for series in (self.daily_weights(), self.daily_volume()):
+            for day, value in series:
+                h.update(f"{day}:{value}\n".encode())
+        for ex_id in self.top_exercises():
+            for day, value in self.exercise_1rm_series(ex_id):
+                h.update(f"{ex_id}:{day}:{value}\n".encode())
+        return h.hexdigest()
 
     def daily_volume(self) -> list[tuple[date, float]]:
         """Lifted volume per training day (several workouts a day add up)."""
