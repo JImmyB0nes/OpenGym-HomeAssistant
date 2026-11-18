@@ -159,7 +159,10 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             self._attr_icon = "mdi:grid"
             self._attr_native_unit_of_measurement = "wk"
         elif kind == "total":
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            # cumulative, but openGym lets users delete workouts — a deleted
+            # session would make TOTAL_INCREASING book a negative jump in the
+            # statistics; a measurement just tracks the running total
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif kind == "volume":
             # resets every Monday — a measurement, not a growing counter
             self._attr_state_class = SensorStateClass.MEASUREMENT

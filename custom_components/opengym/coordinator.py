@@ -61,8 +61,6 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         )
         self.client = client
         self.entry = entry
-        # webhook deliveries land here; merged into the polled state
-        self.pending_events: list[dict[str, Any]] = []
         # live presence (admin endpoint, None when not admin)
         self.uid: str | None = None
         self.is_admin: bool | None = None
@@ -86,6 +84,8 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         self.import_statistics = bool(
             entry.options.get(CONF_IMPORT_STATISTICS, DEFAULT_IMPORT_STATISTICS)
         )
+        # history fingerprint last fed to the recorder (None = never)
+        self._stats_digest: str | None = None
         # (8) coach
         self.coach_enabled: bool | None = None
         self.coach: dict[str, Any] | None = None
@@ -144,8 +144,12 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         snapshot.lang = getattr(self.hass.config, "language", None) or "en"
         snapshot._rev = rev  # noqa: SLF001  (needed for conditional writes)
         await self._async_update_extras()
-        if self.import_statistics:
-            # history -> long-term statistics, only when the document changed
+        digest = snapshot.history_digest() if self.import_statistics else None
+        if digest is not None and digest != self._stats_digest:
+            # history -> long-term statistics, only when the history actually
+            # moved (a rev bump from settings or a plan edit alone is not worth
+            # re-feeding the whole series into the recorder)
+            self._stats_digest = digest
             self.hass.async_create_task(
                 async_import_statistics(
                     self.hass, self.entry.entry_id, self.entry.title or "openGym", snapshot
@@ -341,12 +345,6 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
 
     @callback
     def ingest_event(self, event_type: str, event: dict[str, Any]) -> None:
-        """Remember the newest webhook delivery of each type between polls."""
-        self.pending_events = [
-            e for e in self.pending_events if e.get("type") != event_type
-        ]
-        self.pending_events.append({"type": event_type, **event})
+        """A signed webhook arrived: the document changed, fetch it (debounced)."""
         if self.data:
-            self.async_update_listeners()
-            # A delivery means the document changed: fetch it now (debounced).
             self.hass.async_create_task(self.async_request_refresh())

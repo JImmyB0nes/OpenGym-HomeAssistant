@@ -162,10 +162,6 @@ FATIGUE_SCAN_DAYS: Final[int] = 30
 FATIGUE_READY_MAX: Final[float] = 0.25
 FATIGUE_RECOVERING_MAX: Final[float] = 0.5
 
-# Presence counts as "training now" for at most this many seconds after the
-# last heartbeat (openGym expires live entries after 70 s).
-PRESENCE_MAX_AGE = 90
-
 # Epley estimate for 1RM: w * (1 + r / K)
 EPLEY_K = 30
 

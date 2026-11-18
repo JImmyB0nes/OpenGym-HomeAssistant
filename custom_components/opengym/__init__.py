@@ -336,7 +336,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         connections = (await runtime.client.list_integrations()).get("connections") or []
         webhook_conns = [c for c in connections if c.get("kind") == "webhook" or c.get("provider") == "webhook"]
         if not webhook_conns:
-            raise ValueError("no webhook connection found in openGym (Settings -> Integrations)")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_webhook_connection"
+            )
         result = await runtime.client.test_event(
             webhook_conns[0]["id"], call.data.get("event_type", "workout.finished")
         )

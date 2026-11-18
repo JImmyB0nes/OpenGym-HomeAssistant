@@ -149,5 +149,61 @@ class Detail(unittest.TestCase):
         self.assertEqual(s.streak(SUNDAY), 0)  # last session was Thursday
 
 
+class WeekStartSetting(unittest.TestCase):
+    """openGym's `weekStart: 0` (Sunday) must move every weekly window, not
+    just the streak — sensors, cards and plan views used to disagree.
+    Wednesday 18 Nov 2026: the Sunday week runs 15..21, the Monday week 16..22."""
+
+    WEDNESDAY = date(2026, 11, 18)
+
+    @staticmethod
+    def state_with(week_start):
+        raw = {"unit": "kg", "workouts": [
+            {"d": "2026-11-15", "vol": 10,  # the Sunday that opens the week
+             "entries": [{"id": "1010", "sets": [{"w": 50, "r": 5, "done": True}]}]},
+        ]}
+        if week_start is not None:
+            raw["weekStart"] = week_start
+        return OpenGymState(raw)
+
+    def test_monday_by_default(self):
+        s = self.state_with(None)
+        self.assertEqual(s.week_start(self.WEDNESDAY), date(2026, 11, 16))
+        self.assertEqual(s.week_volume(self.WEDNESDAY), 0)
+
+    def test_sunday_honored_everywhere(self):
+        s = self.state_with(0)
+        self.assertEqual(s.week_start(self.WEDNESDAY), date(2026, 11, 15))
+        self.assertEqual(s.week_volume(self.WEDNESDAY), 10)
+        self.assertEqual(s.week_count(self.WEDNESDAY), 1)
+        self.assertEqual(s.week_sets(self.WEDNESDAY)["gluteal"], 1.0)
+        self.assertTrue(s.week_streak(self.WEDNESDAY)["this_week_done"])
+
+    def test_settings_source(self):
+        raw = self.state_with(None).raw | {"settings": {"weekStart": 0}}
+        s = OpenGymState(raw)
+        self.assertEqual(s.week_start(self.WEDNESDAY), date(2026, 11, 15))
+
+
+class HistoryDigest(unittest.TestCase):
+    """The statistics import must only run when history actually moved."""
+
+    def test_stable_and_moves(self):
+        s = sample_state()
+        self.assertEqual(s.history_digest(), s.history_digest())
+        before = s.history_digest()
+        s.workouts.append(
+            {"d": SUNDAY.isoformat(), "vol": 1,
+             "entries": [{"id": "1012", "sets": [{"w": 40, "r": 8, "done": True}]}]}
+        )
+        self.assertNotEqual(s.history_digest(), before)
+
+    def test_settings_only_change_is_invisible(self):
+        s = sample_state()
+        before = s.history_digest()
+        s.raw["restSec"] = 999  # rev bump without history change
+        self.assertEqual(s.history_digest(), before)
+
+
 if __name__ == "__main__":
     unittest.main()

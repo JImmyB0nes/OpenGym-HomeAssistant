@@ -566,6 +566,9 @@
     },
     "plan_unknown_routine": {
       "message": "Unbekannte Routine: {routine}"
+    },
+    "no_webhook_connection": {
+      "message": "Keine Webhook-Verbindung in openGym gefunden (Einstellungen -> Integrationen)."
     }
   }
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import secrets
 from typing import Any
@@ -176,7 +177,21 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("openGym: unexpected error while pairing")
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(secrets.token_hex(8))
+                # Stable id: the openGym user id, hashed (the pairing token
+                # belongs to the user, so the same account pairs twice aborts
+                # with "already configured" instead of becoming a duplicate).
+                try:
+                    me = await OpenGymApiClient(self.hass, self._url, self._token).me()
+                    user_id = str((me.get("user") or {}).get("id") or "")
+                except OpenGymError:
+                    user_id = ""
+                if user_id:
+                    await self.async_set_unique_id(
+                        hashlib.sha256(user_id.encode()).hexdigest()[:32]
+                    )
+                else:
+                    # id unknown (offline mid-flow): keep pairing possible
+                    await self.async_set_unique_id(secrets.token_hex(8))
                 self._abort_if_unique_id_configured()
                 auto_webhook = bool(user_input.get(CONF_AUTO_WEBHOOK))
                 if auto_webhook and not user_input.get(CONF_SECRET, "").strip():
