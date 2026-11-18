@@ -10,6 +10,7 @@
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-%E2%89%A5%202024.11-18bcf2?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
 [![HACS](https://img.shields.io/badge/HACS-Store-41bdf5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/)
 [![CI](https://img.shields.io/github/actions/workflow/status/JImmyB0nes/OpenGym-HomeAssistant/ci.yml?branch=main&label=CI)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/github/downloads/JImmyB0nes/OpenGym-HomeAssistant/total?label=Downloads&color=a3e635)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/releases)
 [![License](https://img.shields.io/github/license/JImmyB0nes/OpenGym-HomeAssistant?label=License)](LICENSE)
 
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
