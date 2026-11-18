@@ -37,8 +37,6 @@ CONF_AUTO_WEBHOOK = "auto_webhook"
 
 ATTR_EVENT_ID = "event_id"
 ATTR_EVENT_TYPE = "event_type"
-ATTR_CREATED_AT = "created_at"
-ATTR_TEST = "test"
 
 HEADER_SIGNATURE = "X-OpenGym-Signature"
 HEADER_EVENT = "X-OpenGym-Event"

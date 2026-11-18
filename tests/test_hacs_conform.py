@@ -187,7 +187,7 @@ class TestTranslations(unittest.TestCase):
     def test_exceptions_translated(self):
         src = "\n".join(p.read_text() for p in COMP.glob("*.py"))
         used = set(re.findall(r'translation_key="([a-z_]+)"', src))
-        used -= {"connection_error", "webhook_delivery_failed"}  # issues
+        used -= set(self.en["issues"])  # repairs use issues, not exceptions
         used |= {f"plan_{k}" for k in ("same_day", "nothing_planned", "note_future", "note_tag")}
         self.assertEqual(used - set(self.en["exceptions"]), set())
 

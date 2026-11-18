@@ -44,7 +44,7 @@
 
 const TAG = "opengym-muscle-card";
 const WEEK_TAG = "opengym-week-card";
-const CARD_VERSION = "0.11.3";
+const CARD_VERSION = "0.11.4";
 const DEFAULT_ENTITY = "sensor.opengym_muscle_balance";
 
 const SLUGS = [
@@ -705,7 +705,13 @@ class OpenGymMuscleCard extends OpenGymBase {
     const cur = this._weekOffset < 0 ? this._histWeek(a) : null;
     const ok = (v) => v != null && v !== "" && !Number.isNaN(Number(v));
     const items = [];
-    const totalSets = cur ? cur.sets : Object.values(a.sets || {}).reduce((x, y) => x + (Number(y) || 0), 0);
+    // Current week: the entity's own state is the authority (the 14 tracked
+    // groups); the attribute sum would also add serratus/obliques/hip-flexors/
+    // tibialis, which have no weekly_sets_* sensor of their own.
+    const own = S[this._cfg.entity]?.state;
+    const totalSets = cur ? cur.sets
+      : own != null && !Number.isNaN(Number(own)) ? Number(own)
+      : Object.values(a.sets || {}).reduce((x, y) => x + (Number(y) || 0), 0);
     items.push({ label: t.stats.sets, value: esc(num(h, totalSets)), more: this._cfg.entity });
     const vol = cur ? cur.volume : S[ids.volume]?.state;
     if (ok(vol)) items.push({ label: t.stats.volume, value: `${esc(compact(h, vol))}<small> ${esc(a.unit || "kg")}</small>`, more: cur ? null : ids.volume });

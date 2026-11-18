@@ -106,7 +106,9 @@ class History(unittest.TestCase):
         hist = sample_state().week_history(SUNDAY)
         self.assertEqual(len(hist), 12)
         self.assertEqual(hist[-1]["workouts"], 2)
-        self.assertEqual(hist[-1]["sets"], 9.8)
+        # the 14 groups our weekly_sets_* sensors track (raw week_sets
+        # would be 9.8 — the extra 0.4 is `obliques`, which has no sensor)
+        self.assertEqual(hist[-1]["sets"], 9.4)
         self.assertEqual(hist[-1]["muscles"]["gluteal"], 2.0)
         self.assertEqual(hist[0]["week_start"], "2026-08-31")  # 11 weeks back
 

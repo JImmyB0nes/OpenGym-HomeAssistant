@@ -10,11 +10,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import webhook
-from homeassistant.config_entries import (
-    ConfigEntry,
-    ConfigFlow,
-    OptionsFlow,
-)
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_URL
 
 # ConfigFlowResult exists only since HA 2024.4; fall back to the generic
@@ -99,7 +95,7 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(
         config_entry: ConfigEntry,
     ) -> "OpenGymOptionsFlow":
-        return OpenGymOptionsFlow()
+        return OpenGymOptionsFlow(config_entry)
 
     async def async_step_reauth(
         self, entry_data: dict[str, Any]
@@ -242,7 +238,24 @@ class OpenGymConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 class OpenGymOptionsFlow(OptionsFlow):
-    """Poll interval, fast revision tick and max heart rate."""
+    """Poll interval, fast revision tick and max heart rate.
+
+    Core hands the entry to `async_get_options_flow`; from 2024.12 it also
+    exposes it as `self.config_entry`. We keep our own reference because that
+    property does not exist on a plain OptionsFlow in 2024.11.0–2024.11.3 —
+    reading it there raised AttributeError and the options dialog never
+    opened. (The alternative, OptionsFlowWithConfigEntry, is deprecated.)
+    """
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Remember the entry core passed in."""
+        self._entry = config_entry
+        super().__init__()
+
+    @property
+    def entry(self) -> ConfigEntry:
+        """The config entry this options flow belongs to."""
+        return self._entry
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
@@ -253,7 +266,7 @@ class OpenGymOptionsFlow(OptionsFlow):
                 {
                     vol.Optional(
                         CONF_POLL_INTERVAL,
-                        default=self.config_entry.options.get(
+                        default=self.entry.options.get(
                             CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
                         ),
                     ): NumberSelector(
@@ -266,7 +279,7 @@ class OpenGymOptionsFlow(OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_REV_INTERVAL,
-                        default=self.config_entry.options.get(
+                        default=self.entry.options.get(
                             CONF_REV_INTERVAL, DEFAULT_REV_INTERVAL
                         ),
                     ): NumberSelector(
@@ -277,7 +290,7 @@ class OpenGymOptionsFlow(OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_MAX_HEART_RATE,
-                        default=self.config_entry.options.get(
+                        default=self.entry.options.get(
                             CONF_MAX_HEART_RATE, DEFAULT_MAX_HEART_RATE
                         ),
                     ): NumberSelector(
@@ -288,13 +301,13 @@ class OpenGymOptionsFlow(OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_ASSIST_SENTENCES,
-                        default=self.config_entry.options.get(
+                        default=self.entry.options.get(
                             CONF_ASSIST_SENTENCES, DEFAULT_ASSIST_SENTENCES
                         ),
                     ): BooleanSelector(),
                     vol.Optional(
                         CONF_IMPORT_STATISTICS,
-                        default=self.config_entry.options.get(
+                        default=self.entry.options.get(
                             CONF_IMPORT_STATISTICS, DEFAULT_IMPORT_STATISTICS
                         ),
                     ): BooleanSelector(),

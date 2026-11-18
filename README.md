@@ -276,7 +276,7 @@ The integration ships four cards (`custom:opengym-muscle-card`, `custom:opengym-
   lovelace:
     mode: yaml
     resources:
-      - url: /opengym/opengym-muscle-card.js?v=0.11.3
+      - url: /opengym/opengym-muscle-card.js?v=0.11.4
         type: module
   ```
 
@@ -675,6 +675,12 @@ HA's port blocked by the firewall, or openGym in a docker network without route 
 <summary><b>HA reports a repair "Webhook deliveries failed"</b></summary>
 
 openGym could not deliver multiple times. Fix the cause above, then confirm the repair — the failed deliveries are re-queued.
+</details>
+
+<details>
+<summary><b>HA reports a repair "deliveries arrive unsigned"</b></summary>
+
+No signing secret is configured, so HA accepts the deliveries without verifying the signature — anyone who can reach the webhook URL could post events. Create the connection again under *openGym → Settings → Integrations → Webhooks → Connect*, copy the secret it shows and save it in the integration's options (or re-add the entry with *Set up webhook automatically* on). From 0.11.4 this state is reported as a repair instead of running silently.
 </details>
 
 **Cards & entities**

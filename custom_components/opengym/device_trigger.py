@@ -84,7 +84,9 @@ async def async_attach_trigger(
     """Listen for one openGym event type."""
     event_name = TRIGGER_TYPES[config[CONF_TYPE]]
     entry = _entry_from_device(hass, config[CONF_DEVICE_ID])
-    only_real = config.get("test") is False
+    # An absent key (YAML-defined triggers, pre-0.11 configs) filters like
+    # the UI default does, so a test delivery never fires the automation.
+    only_real = not config.get("test", False)
     job = HassJob(action)
 
     @callback

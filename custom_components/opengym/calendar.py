@@ -9,11 +9,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
 from .device_info import open_gym_device_info, suggested_entity_id
 from .coordinator import OpenGymDataCoordinator
-
-LOOKAHEAD_DAYS = 30
 
 
 async def async_setup_entry(

@@ -24,7 +24,6 @@ from .const import (
     FATIGUE_HALF_LIFE_H,
     INTEGRATION_VERSION,
     MUSCLES,
-    _CANON,
 )
 from .coordinator import OpenGymDataCoordinator
 from .state import OpenGymState
@@ -254,7 +253,9 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         if self._kind == "custom_ex":
             return state.custom_ex_count()
         if self._kind == "balance":
-            return round(sum(state.week_sets(dt_util.now().date()).values()), 1)
+            # the 14 groups the weekly_sets_* sensors report, not openGym's
+            # extra map slugs — otherwise this total and the sensors disagree
+            return round(sum(state.tracked_week_sets(dt_util.now().date()).values()), 1)
         if self._kind == "fatigue":
             values = state.fatigue(dt_util.now().date())
             return sum(1 for v in values.values() if v > 0.5)
@@ -346,6 +347,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             current = (state.last_weighin() or {}).get("w")
             return {
                 "week_start": state.week_start(today).isoformat(),
+                # per-muscle detail keeps openGym's full map (incl. serratus,
+                # obliques, hip-flexors, tibialis) so the body map stays true
                 "sets": state.week_sets(today),
                 "targets": {m: list(r) for m, r in targets.items()},
                 "last_trained": state.muscle_last_days(today),
@@ -441,7 +444,7 @@ class MuscleWeeklySetsSensor(_Base):
         super().__init__(coordinator, entry, f"weekly_sets_{muscle.replace('-', '_')}")
         self._muscle = muscle
         # openGym's map spells forearms `forearm`
-        self._slugs = {muscle} | {s for s, canon in _CANON.items() if canon == muscle}
+        self._slugs = OpenGymState._tracked_slugs(muscle)
 
     @property
     def available(self) -> bool:

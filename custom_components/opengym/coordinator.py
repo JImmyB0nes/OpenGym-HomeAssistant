@@ -142,7 +142,6 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         await self._async_update_presence()
         snapshot = OpenGymState(state)
         snapshot.lang = getattr(self.hass.config, "language", None) or "en"
-        snapshot._rev = rev  # noqa: SLF001  (needed for conditional writes)
         await self._async_update_extras()
         digest = snapshot.history_digest() if self.import_statistics else None
         if digest is not None and digest != self._stats_digest:

@@ -22,7 +22,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_START, Platform
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, issue_registry as ir
 from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
@@ -211,6 +211,10 @@ class OpenGymRuntime:
         ):
             _LOGGER.warning("openGym webhook: signature check failed, rejecting delivery")
             return
+        if not secret:
+            _LOGGER.debug(
+                "openGym webhook: no signing secret configured, accepting an unsigned delivery"
+            )
 
         event_type = payload.get("type")
         if event_type not in EVENT_TYPES:
@@ -352,7 +356,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         state = runtime.coordinator.data
         if state is None:
             return {"summary": {}, "workouts": []}
-        from datetime import timedelta
         days = int(call.data.get("days", 30))
         start = dt_util.now().date() - timedelta(days=days)
         workouts = state.workouts_between(start, dt_util.now().date())
@@ -561,12 +564,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenGymConfigEntry) -> b
                 data={**entry.data, CONF_SECRET: secret or "", CONF_AUTO_WEBHOOK: False},
             )
             _LOGGER.info("openGym: webhook connection created in openGym")
+            if not secret:
+                # The connection exists, but deliveries arrive unsigned: keep
+                # it, tell the user instead of pretending everything is fine.
+                ir.async_create_issue(
+                    hass,
+                    DOMAIN,
+                    f"webhook_unauthenticated_{entry.entry_id}",
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="webhook_unauthenticated",
+                )
         except (OpenGymError, NoURLAvailableError) as err:
             _LOGGER.warning(
                 "openGym: could not create the webhook connection automatically (%s); "
                 "add it manually in openGym: Settings -> Integrations -> Webhooks -> Connect",
                 err,
             )
+    elif not entry.data.get(CONF_SECRET):
+        # An entry that was set up without a secret at all (or lost it): the
+        # same warning, so unauthenticated deliveries are never silent.
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            f"webhook_unauthenticated_{entry.entry_id}",
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="webhook_unauthenticated",
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, f"webhook_unauthenticated_{entry.entry_id}")
 
     # Persist a possibly renewed Bearer token (openGym rotates it at /api/me).
     if token := runtime.client.token:

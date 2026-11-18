@@ -522,6 +522,10 @@
           "not_loaded": "The openGym entry is not loaded."
         }
       }
+    },
+    "webhook_unauthenticated": {
+      "title": "openGym deliveries arrive unsigned",
+      "description": "Home Assistant accepts openGym's webhook deliveries without verifying a signature, because no signing secret is configured. Anyone who can reach the webhook URL could post events.\n\nSet up the connection again under openGym: Settings → Integrations → Webhooks → Connect, copy the signing secret shown there, and enter it under Home Assistant → Settings → Devices & Services → openGym → Configure (or delete and re-add the integration with “Set up webhook automatically” enabled)."
     }
   },
   "exceptions": {

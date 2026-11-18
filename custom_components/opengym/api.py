@@ -56,6 +56,11 @@ class OpenGymApiClient:
         self._url = url.rstrip("/")
         self.token = token
 
+    @property
+    def base_url(self) -> str:
+        """Root URL of the instance; the update entity reads /api/health there."""
+        return self._url
+
     async def _request(
         self,
         method: str,

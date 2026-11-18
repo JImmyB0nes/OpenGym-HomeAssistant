@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import aiohttp
 
@@ -13,7 +12,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import OpenGymDataCoordinator
 from .device_info import open_gym_device_info, suggested_entity_id
 
@@ -63,7 +61,7 @@ class OpenGymUpdateEntity(CoordinatorEntity[OpenGymDataCoordinator], UpdateEntit
         """Read the instance version and the latest upstream release."""
         # Instance version: openGym reports it nowhere in the API, so ask its
         # web UI (the served HTML carries the build string); fall back silently.
-        base = self.coordinator.client._url
+        base = self.coordinator.client.base_url
         try:
             async with self._session.get(
                 f"{base}/api/health", timeout=aiohttp.ClientTimeout(total=10)

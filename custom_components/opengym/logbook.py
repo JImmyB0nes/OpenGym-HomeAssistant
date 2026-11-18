@@ -41,7 +41,7 @@ def async_describe_events(
             return {
                 "name": _entry_title(data.get("entry_id")),
                 "message": logic.logbook_message(og_type, data, hass.config.language),
-                "icon": LOGBOOK_ICONS[og_type],
+                "icon": LOGBOOK_ICONS.get(og_type, "mdi:dumbbell"),
             }
 
         async_describe_event(DOMAIN, bus_event, _describe)

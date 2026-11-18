@@ -401,6 +401,25 @@ class OpenGymState:
                     load[muscle] = round(load.get(muscle, 0) + weight * sets, 4)
         return load
 
+    @staticmethod
+    def _tracked_slugs(muscle: str) -> set[str]:
+        """openGym's slugs that make up one of our entity muscle groups."""
+        return {muscle} | {s for s, canon in _CANON.items() if canon == muscle}
+
+    def tracked_week_sets(self, today: date, week_offset: int = 0) -> dict[str, float]:
+        """`week_sets` folded onto the 14 groups the entities track.
+
+        openGym's map also carries `serratus`, `obliques`, `hip-flexors` and
+        `tibialis`; those have no `weekly_sets_*` entity of their own, so the
+        balance total must not count them — otherwise the sum of the sensors
+        and the balance state drift apart (fixed in 0.11.4).
+        """
+        raw = self.week_sets(today, week_offset)
+        return {
+            muscle: round(sum(raw.get(s, 0) for s in self._tracked_slugs(muscle)), 4)
+            for muscle in MUSCLES
+        }
+
     def muscle_last_days(self, today: date) -> dict[str, str | None]:
         """ISO date each muscle was last trained (primaries + weighted secondaries)."""
         last: dict[str, date] = {}
@@ -463,7 +482,11 @@ class OpenGymState:
                     continue
                 for muscle in self._entry_muscles(info):
                     last.setdefault(_CANON.get(muscle, muscle), day)
-            if len(last) >= len(MUSCLES):
+            # Stop once every slug openGym's map knows has a date. Counting
+            # len(MUSCLES) instead breaks too early: the map also carries
+            # serratus/obliques/hip-flexors/tibialis, so muscles trained only
+            # in older sessions were left at 999 (see 0.11.4).
+            if len(last) >= len(MAP_SLUGS):
                 break
         return {
             muscle: (today - last[muscle]).days if muscle in last else 999
@@ -609,11 +632,13 @@ class OpenGymState:
             sunday = monday + timedelta(days=6)
             in_week = self.workouts_between(monday, sunday)
             by_muscle = self.week_sets(today, -offset)
+            tracked = self.tracked_week_sets(today, -offset)
             out.append(
                 {
                     "week_start": monday.isoformat(),
                     "workouts": len(in_week),
-                    "sets": round(sum(by_muscle.values()), 1),
+                    # same basis as the muscle-balance state: the 14 tracked groups
+                    "sets": round(sum(tracked.values()), 1),
                     "volume": round(sum(w.get("vol") or 0 for w in in_week), 1),
                     "muscles": by_muscle,
                 }
