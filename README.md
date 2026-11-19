@@ -12,6 +12,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/JImmyB0nes/OpenGym-HomeAssistant/ci.yml?branch=main&label=CI)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/JImmyB0nes/OpenGym-HomeAssistant/total?label=Downloads&color=a3e635)](https://github.com/JImmyB0nes/OpenGym-HomeAssistant/releases)
 [![License](https://img.shields.io/github/license/JImmyB0nes/OpenGym-HomeAssistant?label=License)](LICENSE)
+[![Forgejo mirror](https://img.shields.io/badge/Forgejo%20mirror-2c8794?logo=gitea&logoColor=white)](https://git.jimmybones.de/jimmybones/OpenGym-HomeAssistant)
 
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JImmyB0nes&repository=OpenGym-HomeAssistant&category=integration)
 [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=opengym)
