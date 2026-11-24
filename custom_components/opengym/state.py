@@ -839,3 +839,71 @@ class OpenGymState:
             },
             "prs": self.pr_timeline(),
         }
+
+    # --- what to train today ----------------------------------------------------
+
+    def _routine_load(self, routine: dict[str, Any]) -> dict[str, float]:
+        """Set-weighted muscle load of one routine (primaries 1.0, secondaries 0.4)."""
+        load: dict[str, float] = {}
+        for ex in routine.get("ex") or []:
+            if not isinstance(ex, dict):
+                continue
+            info = self._info(ex.get("id"), ex)
+            sets = ex.get("sets")
+            if not info or not isinstance(sets, (int, float)) or sets <= 0:
+                continue
+            for muscle, weight in self._entry_muscles(info).items():
+                load[muscle] = load.get(muscle, 0.0) + weight * float(sets)
+        return load
+
+    def recommendation(self, today: date, top: int = 3) -> dict[str, Any]:
+        """Which main muscle groups suit a session today, and the routine for them.
+
+        Only recovered muscles (fatigue model: "ready") qualify. Among those,
+        the ones furthest below their weekly set target and the longest
+        untrained score highest. `kind` is "train" (muscles below), "rest"
+        (nothing has recovered) or "free" (all recovered, all targets met).
+        """
+        fatigue = self.fatigue(today)
+        week = self.week_sets(today)
+        targets = self.muscle_targets()
+        last = self.muscle_last_days(today)
+        scores: dict[str, float] = {}
+        ready: list[str] = []
+        tired: list[tuple[float, str]] = []
+        for muscle, default in MUSCLE_TARGETS.items():
+            value = fatigue.get(muscle, 0.0)
+            if self.fatigue_state(value) != "ready":
+                tired.append((value, muscle))
+                continue
+            ready.append(muscle)
+            low, high = targets.get(muscle, default)
+            done = week.get(muscle, 0.0)
+            if high <= 0 or done >= high:
+                continue  # no target set (0–0), or the week's maximum is reached
+            deficit = min(1.0, max(0.0, low - done) / low) if low else 0.0
+            day = _day(last.get(muscle))
+            idle = 14 if day is None else min(14, max(0, (today - day).days))
+            score = round(0.65 * deficit + 0.35 * idle / 14, 3)
+            if score > 0:
+                scores[muscle] = score
+        fatigued = [m for _, m in sorted(tired, reverse=True)]
+        base = {"fatigued": fatigued, "scores": scores, "routine": None, "routine_id": None}
+        if not ready:
+            return {"kind": "rest", "muscles": [], **base}
+        if not scores:
+            return {"kind": "free", "muscles": [], **base}
+        # ties: the bigger weekly target (the bigger muscle group) first
+        muscles = sorted(
+            scores, key=lambda m: (-scores[m], -targets.get(m, MUSCLE_TARGETS[m])[0], m)
+        )[:top]
+        best: tuple[float, dict[str, Any]] | None = None
+        for routine in self.routines.values():
+            load = self._routine_load(routine)
+            fit = sum(load.get(m, 0.0) for m in muscles) - 1.5 * sum(load.get(m, 0.0) for m in fatigued)
+            if fit > 0 and (best is None or fit > best[0]):
+                best = (fit, routine)
+        if best:
+            base["routine"] = best[1].get("name") or "Workout"
+            base["routine_id"] = best[1].get("id")
+        return {"kind": "train", "muscles": muscles, **base}

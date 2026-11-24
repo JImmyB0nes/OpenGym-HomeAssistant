@@ -49,6 +49,10 @@ EVENT_TYPES: Final = {
     "weighin.logged": "opengym_weighin_logged",
 }
 
+# Coach results Home Assistant asked for (fired on the bus, logbook, event entity)
+EVENT_COACH_ANSWER: Final = "opengym_coach_answer"
+EVENT_COACH_DEBRIEF: Final = "opengym_coach_debrief"
+
 # Max clock skew accepted in the signature timestamp (seconds)
 SIGNATURE_MAX_AGE = 300
 
@@ -80,6 +84,16 @@ SERVICE_COACH_REVIEW = "coach_review"
 SERVICE_SET_REST_DAY = "set_rest_day"
 SERVICE_MOVE_DAY = "move_day"
 SERVICE_ADD_DAY_NOTE = "add_day_note"
+SERVICE_COACH_ASK = "coach_ask"
+SERVICE_COACH_DEBRIEF = "coach_debrief"
+
+# Coach: debrief every new workout automatically (uses the Coach's daily budget)
+CONF_COACH_AUTO_DEBRIEF = "coach_auto_debrief"
+DEFAULT_COACH_AUTO_DEBRIEF = False
+# How long a service call / voice command waits for the Coach's answer (s)
+COACH_WAIT_DEFAULT = 60
+COACH_WAIT_VOICE = 25
+COACH_POLL_SECONDS = 2
 
 # Muscle groups from openGym's exercise-muscle map (primaries vocabulary).
 MUSCLES: Final[dict[str, str]] = {

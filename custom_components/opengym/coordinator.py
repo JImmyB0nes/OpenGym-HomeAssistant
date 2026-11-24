@@ -6,6 +6,7 @@ the small live endpoints (presence, nudge-check, Coach, watch, integrations).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any
@@ -24,9 +25,14 @@ from .api import (
     OpenGymUnauthorizedError,
 )
 from .const import (
+    COACH_POLL_SECONDS,
+    CONF_COACH_AUTO_DEBRIEF,
     CONF_IMPORT_STATISTICS,
+    DEFAULT_COACH_AUTO_DEBRIEF,
     DEFAULT_IMPORT_STATISTICS,
     DOMAIN,
+    EVENT_COACH_ANSWER,
+    EVENT_COACH_DEBRIEF,
     SCAN_INTERVAL,
 )
 from .statistics import async_import_statistics
@@ -89,6 +95,18 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         # (8) coach
         self.coach_enabled: bool | None = None
         self.coach: dict[str, Any] | None = None
+        # Coach jobs Home Assistant started: job id -> {kind, question, notify}.
+        # Only these answers are picked up (and an `ask` cleared) here — a
+        # question asked in the app stays for the app.
+        self.coach_jobs: dict[str, dict[str, Any]] = {}
+        self.coach_results: dict[str, dict[str, Any]] = {}
+        self.coach_last_answer: dict[str, Any] | None = None
+        self.coach_last_debrief: dict[str, Any] | None = None
+        self.coach_auto_debrief = bool(
+            entry.options.get(CONF_COACH_AUTO_DEBRIEF, DEFAULT_COACH_AUTO_DEBRIEF)
+        )
+        # workout ids seen in the last full fetch (None = not fetched yet)
+        self._known_workouts: set[str] | None = None
         # (9) integrations
         self.integrations_enabled: bool | None = None
         self.connections: list[dict[str, Any]] = []
@@ -143,6 +161,7 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         snapshot = OpenGymState(state)
         snapshot.lang = getattr(self.hass.config, "language", None) or "en"
         await self._async_update_extras()
+        self._maybe_auto_debrief(snapshot)
         digest = snapshot.history_digest() if self.import_statistics else None
         if digest is not None and digest != self._stats_digest:
             # history -> long-term statistics, only when the history actually
@@ -213,8 +232,147 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
         except OpenGymFeatureOffError:
             self.coach_enabled = False
             self.coach = None
+            return
         except OpenGymError as err:
             _LOGGER.debug("openGym: coach status failed: %s", err)
+            return
+        if self.coach_jobs:
+            await self._async_collect_coach_results()
+
+    # --- Coach jobs started from Home Assistant ---------------------------------
+
+    async def async_start_coach_job(
+        self,
+        kind: str,
+        *,
+        question: str | None = None,
+        workout_id: str | None = None,
+        lang: str | None = None,
+        notify: bool = False,
+    ) -> str:
+        """Queue an `ask` or `debrief` job; returns its id. Raises OpenGymError."""
+        if kind == "ask":
+            answer = await self.client.coach_ask(question or "", lang)
+        else:
+            answer = await self.client.coach_debrief(workout_id, lang)
+        job_id = str(((answer or {}).get("job") or {}).get("id") or "")
+        if not job_id:
+            raise OpenGymError("the Coach queued no job")
+        self.coach_enabled = True
+        self.coach_results.pop(job_id, None)  # never hand out a stale result for a reused id
+        self.coach_jobs[job_id] = {"kind": kind, "question": question, "notify": notify}
+        # make the fast tick follow the job even before the next status poll
+        self.coach = {**(self.coach or {}), "job": {"id": job_id, "kind": kind, "state": "queued"}}
+        self.async_update_listeners()
+        return job_id
+
+    async def async_wait_coach(self, job_id: str, timeout: float) -> dict[str, Any] | None:
+        """Poll the Coach until job `job_id` has a result, at most `timeout` s.
+
+        None means still running: the result arrives later as an event (and,
+        when the job was started with `notify`, as a notification).
+        """
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(0.0, timeout)
+        while True:
+            if (result := self.coach_results.get(job_id)) is not None:
+                return result
+            if loop.time() >= deadline or job_id not in self.coach_jobs:
+                return self.coach_results.get(job_id)
+            await asyncio.sleep(COACH_POLL_SECONDS)
+            await self._async_update_coach()
+
+    @callback
+    def coach_notify_when_done(self, job_id: str) -> None:
+        """A caller stopped waiting: deliver the result as a notification."""
+        if job_id in self.coach_jobs:
+            self.coach_jobs[job_id]["notify"] = True
+
+    async def _async_collect_coach_results(self) -> None:
+        """Pick up answers/debriefs (and failures) of the jobs HA started."""
+        status = self.coach or {}
+        pending = status.get("pending") or {}
+        pid = str(pending.get("id") or "")
+        if pid and pid in self.coach_jobs:
+            job = self.coach_jobs.pop(pid)
+            if job["kind"] == "ask":
+                result = {
+                    "status": "answered", "job_id": pid, "question": job.get("question"),
+                    "answer": str(pending.get("answer") or pending.get("summary") or ""),
+                }
+                try:
+                    # read here: clear it, so the app's Coach screen is free again
+                    await self.client.coach_resolve()
+                except OpenGymError as err:
+                    _LOGGER.debug("openGym: could not clear the Coach answer: %s", err)
+                self.coach_last_answer = {**result, "at": dt_util.utcnow().isoformat()}
+                event = EVENT_COACH_ANSWER
+            else:
+                # a debrief stays for the app (and the Accept button) to file
+                result = {"status": "answered", "job_id": pid, **logic.debrief_summary(pending)}
+                self.coach_last_debrief = {**result, "at": dt_util.utcnow().isoformat()}
+                event = EVENT_COACH_DEBRIEF
+            self._coach_done(pid, job, result, event)
+        last = status.get("last") or {}
+        lid = str(last.get("id") or "")
+        if lid and lid in self.coach_jobs and last.get("outcome") in (
+            "failed", "dismissed", "expired", "nochange",
+        ):
+            job = self.coach_jobs.pop(lid)
+            result = {
+                "status": "failed", "job_id": lid, "kind": job["kind"],
+                "question": job.get("question"),
+                "error": str(last.get("message") or last.get("reading") or last.get("errorClass") or last.get("outcome")),
+            }
+            # failures go out on the same bus event, with status "failed"
+            self._coach_done(
+                lid, job, result, EVENT_COACH_ANSWER if job["kind"] == "ask" else EVENT_COACH_DEBRIEF
+            )
+
+    @callback
+    def _coach_done(self, job_id: str, job: dict[str, Any], result: dict[str, Any], event: str | None) -> None:
+        self.coach_results[job_id] = result
+        while len(self.coach_results) > 20:
+            self.coach_results.pop(next(iter(self.coach_results)))
+        if event:
+            self.hass.bus.async_fire(event, {**result, "entry_id": self.entry.entry_id})
+        if job.get("notify"):
+            from homeassistant.components import persistent_notification
+
+            lang = getattr(self.hass.config, "language", None)
+            title, message = logic.coach_notification(job["kind"], result, lang)
+            persistent_notification.async_create(
+                self.hass, message, title, f"{DOMAIN}_coach_{job_id}"
+            )
+        self.async_update_listeners()
+
+    @callback
+    def _maybe_auto_debrief(self, snapshot: OpenGymState) -> None:
+        """Option: ask the Coach for a debrief of each new recent workout."""
+        ids = {str(w.get("id")) for w in snapshot.workouts if w.get("id") is not None}
+        known, self._known_workouts = self._known_workouts, ids
+        if known is None or not self.coach_auto_debrief or not self.coach_enabled:
+            return
+        today = dt_util.now().date()
+        fresh = [
+            w for w in snapshot.workouts
+            if w.get("id") is not None and str(w.get("id")) not in known
+            and (day := _day(w.get("d"))) is not None and (today - day).days <= 1
+        ]
+        if not fresh:
+            return
+        workout_id = str(fresh[-1]["id"])
+
+        async def _debrief() -> None:
+            try:
+                await self.async_start_coach_job(
+                    "debrief", workout_id=workout_id,
+                    lang=getattr(self.hass.config, "language", None),
+                )
+            except OpenGymError as err:
+                _LOGGER.info("openGym: automatic Coach debrief not started (%s)", err)
+
+        self.hass.async_create_task(_debrief(), name="openGym Coach debrief")
 
     async def _async_update_watch(self, links: bool = False) -> bool:
         """Paired watches (on refresh) and the queued watch events (peek only)."""
@@ -316,7 +474,7 @@ class OpenGymDataCoordinator(DataUpdateCoordinator[OpenGymState]):
             await self._async_update_presence()
             changed |= old != self.presence
         changed |= await self._async_update_watch()
-        if self.coach_enabled and (self.coach or {}).get("job"):
+        if self.coach_enabled and ((self.coach or {}).get("job") or self.coach_jobs):
             old_coach = self.coach
             await self._async_update_coach()
             changed |= old_coach != self.coach

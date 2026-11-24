@@ -44,13 +44,15 @@
           "rev_interval": "Fast check (seconds, 0 = off)",
           "max_heart_rate": "Max heart rate (bpm, for HR zones)",
           "assist_sentences": "Voice commands (Assist)",
-          "import_statistics": "Import history into long-term statistics"
+          "import_statistics": "Import history into long-term statistics",
+          "coach_auto_debrief": "Coach: debrief every new workout"
         },
         "data_description": {
           "rev_interval": "Checks openGym's revision (a few bytes) and live data; the full document is only fetched when something changed.",
           "max_heart_rate": "Zones 1-5 = 50/60/70/80/90 % of this value.",
           "assist_sentences": "Installs German and English sentences into config/custom_sentences/ (e.g. \"When is my next workout?\", \"Log 80.4 kilos\"). Turning it off removes them again.",
-          "import_statistics": "Body weight, volume per training day and the estimated 1RM of your most-trained exercises, back to your first workout – for statistics graphs and the energy-style history."
+          "import_statistics": "Body weight, volume per training day and the estimated 1RM of your most-trained exercises, back to your first workout – for statistics graphs and the energy-style history.",
+          "coach_auto_debrief": "Right after a new workout the Coach reads it; the debrief appears in the logbook, as an event and in openGym. Uses the Coach's daily budget."
         }
       }
     }
@@ -222,6 +224,9 @@
       },
       "watch_hr_zone": {
         "name": "Heart rate zone"
+      },
+      "recommendation": {
+        "name": "Training recommendation"
       }
     },
     "binary_sensor": {
@@ -317,6 +322,50 @@
         "name": "Today's routine",
         "state": {
           "rest": "Rest day"
+        }
+      }
+    },
+    "event": {
+      "workout_finished": {
+        "name": "Workout finished",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "workout_finished": "Workout finished"
+            }
+          }
+        }
+      },
+      "personal_record": {
+        "name": "Personal record",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "personal_record": "Personal record"
+            }
+          }
+        }
+      },
+      "weigh_in": {
+        "name": "Weigh-in",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "weigh_in": "Weigh-in"
+            }
+          }
+        }
+      },
+      "coach_event": {
+        "name": "Coach result",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "answer": "Answer",
+              "debrief": "Debrief",
+              "failed": "Failed"
+            }
+          }
         }
       }
     }
@@ -487,6 +536,58 @@
         "entry_id": {
           "name": "Config entry",
           "description": "Which openGym profile (config entry id). Default: the first one."
+        }
+      }
+    },
+    "coach_ask": {
+      "name": "Ask the Coach",
+      "description": "Asks the openGym Coach a question and returns its answer (also as event opengym_coach_answer).",
+      "fields": {
+        "question": {
+          "name": "Question",
+          "description": "What you want to know, in your own words."
+        },
+        "lang": {
+          "name": "Language",
+          "description": "Language of the answer (e.g. de, en). Default: Home Assistant's language."
+        },
+        "wait": {
+          "name": "Wait",
+          "description": "Seconds to wait for the answer (0 = return at once; the answer then arrives as an event)."
+        },
+        "notify": {
+          "name": "Notify when late",
+          "description": "If the answer takes longer than the wait, show it as a notification in Home Assistant."
+        },
+        "entry_id": {
+          "name": "Entry",
+          "description": "openGym entry (only with several profiles)."
+        }
+      }
+    },
+    "coach_debrief": {
+      "name": "Coach debrief",
+      "description": "Has the Coach read one workout (default: the latest) and returns score and notes (also as event opengym_coach_debrief).",
+      "fields": {
+        "workout_id": {
+          "name": "Workout ID",
+          "description": "openGym id of the workout. Empty: the latest."
+        },
+        "lang": {
+          "name": "Language",
+          "description": "Language of the debrief (e.g. de, en). Default: Home Assistant's language."
+        },
+        "wait": {
+          "name": "Wait",
+          "description": "Seconds to wait for the debrief (0 = return at once)."
+        },
+        "notify": {
+          "name": "Notify when late",
+          "description": "If the debrief takes longer than the wait, show it as a notification in Home Assistant."
+        },
+        "entry_id": {
+          "name": "Entry",
+          "description": "openGym entry (only with several profiles)."
         }
       }
     }

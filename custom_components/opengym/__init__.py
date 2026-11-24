@@ -28,7 +28,13 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
 from . import logic
-from .api import OpenGymApiClient, OpenGymConflictError, OpenGymError, OpenGymFeatureOffError
+from .api import (
+    OpenGymApiClient,
+    OpenGymConflictError,
+    OpenGymConnectionError,
+    OpenGymError,
+    OpenGymFeatureOffError,
+)
 from .const import (
     ATTR_EVENT_ID,
     ATTR_EVENT_TYPE,
@@ -40,6 +46,9 @@ from .const import (
     DEFAULT_REV_INTERVAL,
     SERVICE_ADD_DAY_NOTE,
     SERVICE_CANCEL_REST_TIMER,
+    COACH_WAIT_DEFAULT,
+    SERVICE_COACH_ASK,
+    SERVICE_COACH_DEBRIEF,
     SERVICE_COACH_REVIEW,
     SERVICE_MOVE_DAY,
     SERVICE_SET_REST_DAY,
@@ -93,6 +102,19 @@ def _entry_for_call(hass: HomeAssistant, call: ServiceCall):
     return entry
 
 
+def coach_error(err: OpenGymError) -> HomeAssistantError:
+    """openGym refused or failed a Coach job: its own message (busy, cap, consent)."""
+    reason = str(err)[:200]
+    if isinstance(err, OpenGymConnectionError):
+        message, code = err.server_message()
+        reason = message or code or reason
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key="coach_failed",
+        translation_placeholders={"error": reason[:200]},
+    )
+
+
 def _write_failed(err: Exception) -> HomeAssistantError:
     return HomeAssistantError(
         translation_domain=DOMAIN,
@@ -111,6 +133,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.SELECT,
+    Platform.EVENT,
 ]
 
 # PUT /api/data conflict retries before giving up (409 hands back the fresh doc)
@@ -312,6 +335,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except OpenGymError as err:
             raise _write_failed(err) from err
         runtime.coordinator.set_rest_timer(None)
+
+    async def _coach_job(call: ServiceCall, kind: str, **job: Any) -> dict[str, Any]:
+        """Start an ask/debrief job and wait (up to `wait` s) for its result."""
+        runtime: OpenGymRuntime = _entry_for_call(hass, call).runtime_data
+        coordinator = runtime.coordinator
+        try:
+            job_id = await coordinator.async_start_coach_job(
+                kind, lang=call.data.get("lang") or hass.config.language, **job
+            )
+        except OpenGymFeatureOffError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="coach_off"
+            ) from err
+        except OpenGymError as err:
+            raise coach_error(err) from err
+        result = await coordinator.async_wait_coach(job_id, call.data.get("wait", COACH_WAIT_DEFAULT))
+        if result is None:
+            if call.data.get("notify"):
+                coordinator.coach_notify_when_done(job_id)
+            return {"job_id": job_id, "status": "pending"}
+        return result
+
+    async def handle_coach_ask(call: ServiceCall) -> dict[str, Any]:
+        """Ask the Coach a question; the answer comes back as the response."""
+        return await _coach_job(call, "ask", question=call.data["question"])
+
+    async def handle_coach_debrief(call: ServiceCall) -> dict[str, Any]:
+        """Have the Coach read one workout (default: the latest)."""
+        return await _coach_job(call, "debrief", workout_id=call.data.get("workout_id"))
 
     async def handle_coach_review(call: ServiceCall) -> dict[str, Any]:
         """Ask the openGym Coach to review the plan (answer arrives as a proposal)."""
@@ -528,6 +580,32 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 vol.Optional("text"): vol.All(cv.string, vol.Length(max=logic.NOTE_MAX)),
                 **entry_field,
             }),
+        )
+        coach_fields = {
+            vol.Optional("lang"): vol.All(cv.string, vol.Match(r"^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})?$")),
+            vol.Optional("wait", default=COACH_WAIT_DEFAULT): vol.All(vol.Coerce(int), vol.Range(min=0, max=300)),
+            vol.Optional("notify", default=False): cv.boolean,
+            **entry_field,
+        }
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_COACH_ASK,
+            handle_coach_ask,
+            schema=vol.Schema({
+                vol.Required("question"): vol.All(cv.string, vol.Length(min=1, max=4000)),
+                **coach_fields,
+            }),
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_COACH_DEBRIEF,
+            handle_coach_debrief,
+            schema=vol.Schema({
+                vol.Optional("workout_id"): vol.All(cv.string, vol.Length(max=40)),
+                **coach_fields,
+            }),
+            supports_response=SupportsResponse.OPTIONAL,
         )
         hass.data.setdefault("_opengym_services", set()).add(DOMAIN)
 

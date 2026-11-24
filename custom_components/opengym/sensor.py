@@ -50,6 +50,7 @@ STATIC_SENSORS = (
     ("muscle_balance", "balance"),
     ("muscle_fatigue", "fatigue"),
     ("week_history", "history"),
+    ("recommendation", "recommend"),
 )
 
 
@@ -154,6 +155,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
         elif kind == "week_streak":
             self._attr_icon = "mdi:fire"
             self._attr_native_unit_of_measurement = "wk"
+        elif kind == "recommend":
+            self._attr_icon = "mdi:lightbulb-on-outline"
         elif kind == "history":
             self._attr_icon = "mdi:grid"
             self._attr_native_unit_of_measurement = "wk"
@@ -261,6 +264,8 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             return sum(1 for v in values.values() if v > 0.5)
         if self._kind == "history":
             return sum(1 for w in state.week_history(dt_util.now().date()) if w["workouts"])
+        if self._kind == "recommend":
+            return logic.recommendation_state(state.recommendation(dt_util.now().date()), state.lang)
         return None
 
     @property
@@ -389,6 +394,17 @@ class OpenGymSensor(CoordinatorEntity[OpenGymDataCoordinator], SensorEntity):
             }
         if self._kind == "history":
             return {"weeks": state.week_history(dt_util.now().date())}
+        if self._kind == "recommend":
+            rec = state.recommendation(dt_util.now().date())
+            return {
+                "kind": rec["kind"],
+                "muscles": rec["muscles"],
+                "fatigued": rec["fatigued"],
+                "routine": rec["routine"],
+                "routine_id": rec["routine_id"],
+                "scores": rec["scores"],
+                "text": logic.recommendation_text(rec, state.lang),
+            }
         return {}
 
 
@@ -562,6 +578,9 @@ class CoachStatusSensor(_Base):
     def extra_state_attributes(self) -> dict[str, Any]:
         summary = logic.coach_summary(self.coordinator.coach)
         summary.pop("state")
+        # results of Coach jobs started from HA (opengym.coach_ask / coach_debrief)
+        summary["last_answer"] = self.coordinator.coach_last_answer
+        summary["last_debrief"] = self.coordinator.coach_last_debrief
         return summary
 
 

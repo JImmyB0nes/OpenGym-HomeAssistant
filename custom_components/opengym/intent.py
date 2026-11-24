@@ -19,8 +19,8 @@ from homeassistant.helpers import config_validation as cv, intent
 from homeassistant.util import dt as dt_util
 
 from . import logic
-from .api import OpenGymError
-from .const import DOMAIN
+from .api import OpenGymConnectionError, OpenGymError, OpenGymFeatureOffError
+from .const import COACH_WAIT_VOICE, DOMAIN
 
 INTENT_NEXT_WORKOUT = "OpenGymNextWorkout"
 INTENT_WEEK_SUMMARY = "OpenGymWeekSummary"
@@ -28,6 +28,9 @@ INTENT_LAST_WORKOUT = "OpenGymLastWorkout"
 INTENT_LOG_WEIGHT = "OpenGymLogWeight"
 INTENT_START_REST = "OpenGymStartRestTimer"
 INTENT_CANCEL_REST = "OpenGymCancelRestTimer"
+INTENT_RECOMMEND = "OpenGymRecommendation"
+INTENT_COACH_ASK = "OpenGymCoachAsk"
+INTENT_COACH_DEBRIEF = "OpenGymCoachDebrief"
 
 INTENTS = (
     INTENT_NEXT_WORKOUT,
@@ -36,6 +39,9 @@ INTENTS = (
     INTENT_LOG_WEIGHT,
     INTENT_START_REST,
     INTENT_CANCEL_REST,
+    INTENT_RECOMMEND,
+    INTENT_COACH_ASK,
+    INTENT_COACH_DEBRIEF,
 )
 
 
@@ -48,6 +54,9 @@ async def async_setup_intents(hass: HomeAssistant) -> None:
         LogWeightHandler(),
         StartRestHandler(),
         CancelRestHandler(),
+        RecommendationHandler(),
+        CoachAskHandler(),
+        CoachDebriefHandler(),
     ):
         intent.async_register(hass, handler)
 
@@ -186,6 +195,58 @@ class CancelRestHandler(_OpenGymHandler):
         await runtime.client.cancel_rest_timer()
         runtime.coordinator.set_rest_timer(None)
         return logic.speech("rest_cancelled", lang)
+
+
+class RecommendationHandler(_OpenGymHandler):
+    intent_type = INTENT_RECOMMEND
+    description = "Suggests which muscle groups (and routine) suit a session today"
+
+    async def _answer(self, hass, runtime, slots, lang) -> str:
+        rec = runtime.coordinator.data.recommendation(dt_util.now().date())
+        return logic.recommendation_text(rec, lang)
+
+
+async def _coach_voice(runtime: Any, kind: str, lang: str, **job: Any) -> str:
+    """Start a Coach job, wait a voice-friendly while, speak the result."""
+    coordinator = runtime.coordinator
+    try:
+        job_id = await coordinator.async_start_coach_job(kind, lang=lang, **job)
+    except OpenGymFeatureOffError:
+        return logic.speech("coach_off", lang)
+    except OpenGymConnectionError as err:
+        if err.status in (403, 409, 429):
+            message, code = err.server_message()
+            return logic.coach_refusal_text(code, message, lang)
+        raise
+    result = await coordinator.async_wait_coach(job_id, COACH_WAIT_VOICE)
+    if result is None:
+        coordinator.coach_notify_when_done(job_id)
+        return logic.speech("coach_thinking", lang)
+    if result.get("status") == "failed":
+        return logic.speech("coach_failed", lang, reason=result.get("error") or "?")
+    if kind == "ask":
+        return str(result.get("answer") or "")
+    return logic.speech_debrief(result, lang)
+
+
+class CoachAskHandler(_OpenGymHandler):
+    intent_type = INTENT_COACH_ASK
+    description = "Asks the openGym Coach a question and reads out the answer"
+    slot_schema = {vol.Required("question"): cv.string}
+
+    async def _answer(self, hass, runtime, slots, lang) -> str:
+        question = str(slots["question"]["value"]).strip()
+        if not question:
+            return logic.speech("coach_no_question", lang)
+        return await _coach_voice(runtime, "ask", lang, question=question)
+
+
+class CoachDebriefHandler(_OpenGymHandler):
+    intent_type = INTENT_COACH_DEBRIEF
+    description = "Has the openGym Coach rate the latest workout"
+
+    async def _answer(self, hass, runtime, slots, lang) -> str:
+        return await _coach_voice(runtime, "debrief", lang)
 
 
 __all__ = ["INTENTS", "async_setup_intents"]

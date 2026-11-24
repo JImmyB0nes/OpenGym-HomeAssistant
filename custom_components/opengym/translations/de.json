@@ -44,13 +44,15 @@
           "rev_interval": "Schnellprüfung (Sekunden, 0 = aus)",
           "max_heart_rate": "Maximale Herzfrequenz (bpm, für HF-Zonen)",
           "assist_sentences": "Sprachbefehle (Assist)",
-          "import_statistics": "Verlauf in die Langzeitstatistik übernehmen"
+          "import_statistics": "Verlauf in die Langzeitstatistik übernehmen",
+          "coach_auto_debrief": "Coach: jedes neue Workout auswerten"
         },
         "data_description": {
           "rev_interval": "Prüft openGyms Revision (wenige Bytes) und Live-Daten; das ganze Dokument wird nur bei Änderungen geladen.",
           "max_heart_rate": "Zonen 1–5 = 50/60/70/80/90 % dieses Werts.",
           "assist_sentences": "Legt deutsche und englische Sätze in config/custom_sentences/ an (z. B. „Wann ist mein nächstes Training?“, „Trag 80,4 Kilo ein“). Ausschalten entfernt sie wieder.",
-          "import_statistics": "Körpergewicht, Volumen pro Trainingstag und geschätztes 1RM deiner meistgemachten Übungen – rückwirkend bis zum ersten Training, für Statistik-Diagramme."
+          "import_statistics": "Körpergewicht, Volumen pro Trainingstag und geschätztes 1RM deiner meistgemachten Übungen – rückwirkend bis zum ersten Training, für Statistik-Diagramme.",
+          "coach_auto_debrief": "Direkt nach einem neuen Workout liest der Coach es; die Auswertung erscheint im Logbuch, als Ereignis und in openGym. Verbraucht das Tageskontingent des Coaches."
         }
       }
     }
@@ -222,6 +224,9 @@
       },
       "watch_hr_zone": {
         "name": "Herzfrequenzzone"
+      },
+      "recommendation": {
+        "name": "Trainingsempfehlung"
       }
     },
     "binary_sensor": {
@@ -317,6 +322,50 @@
         "name": "Heutige Routine",
         "state": {
           "rest": "Ruhetag"
+        }
+      }
+    },
+    "event": {
+      "workout_finished": {
+        "name": "Workout beendet",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "workout_finished": "Workout beendet"
+            }
+          }
+        }
+      },
+      "personal_record": {
+        "name": "Persönlicher Rekord",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "personal_record": "Persönlicher Rekord"
+            }
+          }
+        }
+      },
+      "weigh_in": {
+        "name": "Wägung",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "weigh_in": "Wägung"
+            }
+          }
+        }
+      },
+      "coach_event": {
+        "name": "Coach-Ergebnis",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "answer": "Antwort",
+              "debrief": "Auswertung",
+              "failed": "Fehlgeschlagen"
+            }
+          }
         }
       }
     }
@@ -487,6 +536,58 @@
         "entry_id": {
           "name": "Konfigurationseintrag",
           "description": "Welches openGym-Profil (ID des Konfigurationseintrags). Standard: das erste."
+        }
+      }
+    },
+    "coach_ask": {
+      "name": "Coach fragen",
+      "description": "Stellt dem openGym-Coach eine Frage und gibt seine Antwort zurück (auch als Ereignis opengym_coach_answer).",
+      "fields": {
+        "question": {
+          "name": "Frage",
+          "description": "Was du wissen willst, in deinen eigenen Worten."
+        },
+        "lang": {
+          "name": "Sprache",
+          "description": "Sprache der Antwort (z. B. de, en). Standard: Sprache von Home Assistant."
+        },
+        "wait": {
+          "name": "Warten",
+          "description": "Sekunden, die auf die Antwort gewartet wird (0 = sofort zurück; die Antwort kommt dann als Ereignis)."
+        },
+        "notify": {
+          "name": "Benachrichtigen, wenn später",
+          "description": "Dauert die Antwort länger als die Wartezeit, erscheint sie als Benachrichtigung in Home Assistant."
+        },
+        "entry_id": {
+          "name": "Eintrag",
+          "description": "openGym-Eintrag (nur bei mehreren Profilen)."
+        }
+      }
+    },
+    "coach_debrief": {
+      "name": "Coach-Auswertung",
+      "description": "Lässt den Coach ein Workout lesen (Standard: das letzte) und gibt Punktzahl und Hinweise zurück (auch als Ereignis opengym_coach_debrief).",
+      "fields": {
+        "workout_id": {
+          "name": "Workout-ID",
+          "description": "openGym-ID des Workouts. Leer: das letzte."
+        },
+        "lang": {
+          "name": "Sprache",
+          "description": "Sprache der Auswertung (z. B. de, en). Standard: Sprache von Home Assistant."
+        },
+        "wait": {
+          "name": "Warten",
+          "description": "Sekunden, die auf die Auswertung gewartet wird (0 = sofort zurück)."
+        },
+        "notify": {
+          "name": "Benachrichtigen, wenn später",
+          "description": "Dauert die Auswertung länger als die Wartezeit, erscheint sie als Benachrichtigung in Home Assistant."
+        },
+        "entry_id": {
+          "name": "Eintrag",
+          "description": "openGym-Eintrag (nur bei mehreren Profilen)."
         }
       }
     }

@@ -102,6 +102,59 @@ coach_review:
       selector:
         text:
 
+coach_ask:
+  fields:
+    question:
+      required: true
+      example: "Soll ich heute Beine trainieren?"
+      selector:
+        text:
+          multiline: true
+    lang:
+      example: de
+      selector:
+        text:
+    wait:
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 300
+          unit_of_measurement: s
+          mode: box
+    notify:
+      default: false
+      selector:
+        boolean:
+    entry_id:
+      selector:
+        text:
+
+coach_debrief:
+  fields:
+    workout_id:
+      selector:
+        text:
+    lang:
+      example: de
+      selector:
+        text:
+    wait:
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 300
+          unit_of_measurement: s
+          mode: box
+    notify:
+      default: false
+      selector:
+        boolean:
+    entry_id:
+      selector:
+        text:
+
 set_rest_day:
   fields:
     date:

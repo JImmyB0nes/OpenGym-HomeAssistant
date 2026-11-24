@@ -21,9 +21,25 @@ class OpenGymUnauthorizedError(OpenGymError):
 class OpenGymConnectionError(OpenGymError):
     """Server unreachable or bad response."""
 
-    def __init__(self, message: str, status: int | None = None) -> None:
+    def __init__(self, message: str, status: int | None = None, body: str | None = None) -> None:
         super().__init__(message)
         self.status = status
+        self.body = body
+
+    def server_message(self) -> tuple[str | None, str | None]:
+        """openGym's own `{error, code}` from the response body, if it sent one."""
+        import json
+
+        try:
+            data = json.loads(self.body or "")
+        except ValueError:
+            return None, None
+        if not isinstance(data, dict):
+            return None, None
+        return (
+            str(data["error"]) if data.get("error") else None,
+            str(data["code"]) if data.get("code") else None,
+        )
 
 
 class OpenGymConflictError(OpenGymError):
@@ -97,6 +113,7 @@ class OpenGymApiClient:
                     raise OpenGymConnectionError(
                         f"{method} {path} -> {resp.status}: {body[:200]}",
                         status=resp.status,
+                        body=body[:2000],
                     )
                 if resp.content_type and "json" in resp.content_type:
                     return await resp.json()
@@ -231,6 +248,26 @@ class OpenGymApiClient:
         if lang:
             payload["lang"] = lang
         return await self._optional("POST", "/api/coach/review", payload=payload)
+
+    async def coach_ask(self, text: str, lang: str | None = None) -> dict[str, Any]:
+        """`POST /api/coach/ask` {text, lang?} -> 202 job queued; the answer
+        arrives as a pending proposal (kind `ask`, `answer`) on /status."""
+        payload: dict[str, Any] = {"text": text}
+        if lang:
+            payload["lang"] = lang
+        return await self._optional("POST", "/api/coach/ask", payload=payload)
+
+    async def coach_debrief(
+        self, workout_id: str | None = None, lang: str | None = None
+    ) -> dict[str, Any]:
+        """`POST /api/coach/debrief` {workoutId?, lang?} -> 202 job queued
+        (no workout id: the latest session)."""
+        payload: dict[str, Any] = {}
+        if workout_id:
+            payload["workoutId"] = str(workout_id)[:40]
+        if lang:
+            payload["lang"] = lang
+        return await self._optional("POST", "/api/coach/debrief", payload=payload)
 
     async def coach_resolve(
         self,
