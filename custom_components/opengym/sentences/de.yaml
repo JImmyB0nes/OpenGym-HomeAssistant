@@ -47,7 +47,28 @@ intents:
       - sentences:
           - "(stopp|stoppe|beende|abbrechen|brich) [die|den] (pause|pausentimer) [ab]"
           - "pause (stoppen|beenden|abbrechen)"
+  OpenGymRecommendation:
+    data:
+      - sentences:
+          - "was soll ich heute trainieren"
+          - "was sollte ich heute trainieren"
+          - "welche muskel[n|gruppen] [soll|sollte] ich heute trainieren"
+          - "was ist heute [am besten] dran"
+          - "(empfehlung|trainingsempfehlung) für heute"
+  OpenGymCoachAsk:
+    data:
+      - sentences:
+          - "frag[e] [den|meinen] coach[,] {question}"
+          - "[hey] coach[,] {question}"
+  OpenGymCoachDebrief:
+    data:
+      - sentences:
+          - "wie war mein [letztes] (training|workout)"
+          - "(bewerte|beurteile) mein [letztes] (training|workout)"
+          - "(trainingsauswertung|auswertung) [vom|von meinem] [letzten] [(training|workout)]"
 lists:
+  question:
+    wildcard: true
   weight:
     wildcard: true
   unit:

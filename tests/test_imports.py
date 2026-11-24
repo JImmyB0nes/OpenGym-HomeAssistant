@@ -29,7 +29,7 @@ class TestImports(unittest.TestCase):
         "const", "logic", "api", "security", "device_info", "state", "coordinator",
         "websocket_api", "sensor", "binary_sensor", "calendar", "update",
         "button", "number", "select", "repairs", "statistics", "sentences",
-        "logbook", "intent",
+        "logbook", "intent", "event",
         "device_trigger", "device_action", "diagnostics", "config_flow",
         "__init__",
     )
@@ -75,7 +75,7 @@ class TestImports(unittest.TestCase):
         const = sys.modules["homeassistant.const"]
         const.Platform = _enum(
             "Platform",
-            "SENSOR", "BINARY_SENSOR", "CALENDAR", "UPDATE", "BUTTON", "NUMBER", "SELECT",
+            "SENSOR", "BINARY_SENSOR", "CALENDAR", "UPDATE", "BUTTON", "NUMBER", "SELECT", "EVENT",
             "DIAGNOSTICS", "DEVICE_TRIGGER", "DEVICE_ACTION",
         )
         const.UnitOfMass = type("UnitOfMass", (), {"KILOGRAMS": "kg", "POUNDS": "lb"})
@@ -175,6 +175,8 @@ class TestImports(unittest.TestCase):
         num = _mod("homeassistant.components.number", ["RestoreNumber"])
         num.NumberMode = _enum("NumberMode", "AUTO BOX SLIDER")
         _mod("homeassistant.components.select", ["SelectEntity"])
+        _mod("homeassistant.components.event", ["EventEntity"])
+        _mod("homeassistant.components.persistent_notification", ["async_create"])
         it = _mod("homeassistant.helpers.intent", ["Intent", "IntentResponse"])
         it.IntentHandler = type("IntentHandler", (), {})
         it.async_register = lambda hass, handler: None

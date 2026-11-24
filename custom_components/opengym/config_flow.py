@@ -32,8 +32,10 @@ from homeassistant.helpers.selector import (
 from .api import OpenGymApiClient, OpenGymConnectionError, OpenGymError
 from .const import (
     CONF_ASSIST_SENTENCES,
+    CONF_COACH_AUTO_DEBRIEF,
     CONF_IMPORT_STATISTICS,
     DEFAULT_ASSIST_SENTENCES,
+    DEFAULT_COACH_AUTO_DEBRIEF,
     DEFAULT_IMPORT_STATISTICS,
     CONF_AUTO_WEBHOOK,
     CONF_MAX_HEART_RATE,
@@ -303,6 +305,12 @@ class OpenGymOptionsFlow(OptionsFlow):
                         CONF_ASSIST_SENTENCES,
                         default=self.entry.options.get(
                             CONF_ASSIST_SENTENCES, DEFAULT_ASSIST_SENTENCES
+                        ),
+                    ): BooleanSelector(),
+                    vol.Optional(
+                        CONF_COACH_AUTO_DEBRIEF,
+                        default=self.entry.options.get(
+                            CONF_COACH_AUTO_DEBRIEF, DEFAULT_COACH_AUTO_DEBRIEF
                         ),
                     ): BooleanSelector(),
                     vol.Optional(

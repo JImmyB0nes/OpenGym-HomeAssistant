@@ -777,6 +777,19 @@ _SPEECH = {
         "bad_weight": "I did not understand the weight.",
         "rest_started": "Rest timer started for {seconds} seconds.",
         "rest_cancelled": "Rest timer stopped.",
+        "coach_off": "The Coach is not set up on your openGym instance.",
+        "coach_refused": "The Coach can't take this right now: {reason}",
+        "coach_thinking": "The Coach is still thinking. The answer will show up as a notification in Home Assistant.",
+        "coach_failed": "The Coach could not answer: {reason}",
+        "coach_no_question": "What should I ask the Coach?",
+        "debrief": "Score {score} out of 10. {summary}",
+        "debrief_no_score": "{summary}",
+        "recommend": "Ideal today: {muscles}.",
+        "recommend_routine": " Your routine {routine} fits.",
+        "recommend_rest": "Better take a rest today, {muscles} still need to recover.",
+        "recommend_rest_all": "Better take a rest today, your muscles still need to recover.",
+        "recommend_free": "Everything is recovered and your weekly targets are met. Train what you like.",
+        "and": "and",
         "last_none": "You have not logged a workout yet.",
         "last": "Your last workout was {name} {when}.",
         "today": "today",
@@ -802,6 +815,19 @@ _SPEECH = {
         "bad_weight": "Das Gewicht habe ich nicht verstanden.",
         "rest_started": "Pausentimer für {seconds} Sekunden gestartet.",
         "rest_cancelled": "Pausentimer gestoppt.",
+        "coach_off": "Der Coach ist auf deiner openGym-Instanz nicht eingerichtet.",
+        "coach_refused": "Der Coach kann das gerade nicht übernehmen: {reason}",
+        "coach_thinking": "Der Coach denkt noch nach. Die Antwort kommt als Benachrichtigung in Home Assistant.",
+        "coach_failed": "Der Coach konnte nicht antworten: {reason}",
+        "coach_no_question": "Was soll ich den Coach fragen?",
+        "debrief": "{score} von 10 Punkten. {summary}",
+        "debrief_no_score": "{summary}",
+        "recommend": "Heute ideal: {muscles}.",
+        "recommend_routine": " Dazu passt deine Routine {routine}.",
+        "recommend_rest": "Heute lieber Pause, {muscles} brauchen noch Erholung.",
+        "recommend_rest_all": "Heute lieber Pause, deine Muskeln brauchen noch Erholung.",
+        "recommend_free": "Alles ist erholt und deine Wochenziele sind erreicht. Trainier, worauf du Lust hast.",
+        "and": "und",
         "last_none": "Du hast noch kein Training eingetragen.",
         "last": "Dein letztes Training war {name}, {when}.",
         "today": "heute",
@@ -878,3 +904,158 @@ def parse_spoken_number(value: Any) -> float | None:
         return float(match.group(0))
     except ValueError:  # pragma: no cover - the regex only matches numbers
         return None
+
+
+# --- Coach results ------------------------------------------------------------
+
+
+def debrief_summary(pending: dict[str, Any] | None) -> dict[str, Any]:
+    """The readable part of a debrief proposal (CoachProposal, kind `debrief`)."""
+    p = pending or {}
+
+    def _texts(key: str) -> list[str]:
+        return [str(x) for x in (p.get(key) or []) if isinstance(x, (str, int, float))][:10]
+
+    workout = p.get("workout") if isinstance(p.get("workout"), dict) else {}
+    score = p.get("score")
+    return {
+        "score": score if isinstance(score, int) and not isinstance(score, bool) else None,
+        "summary": str(p.get("summary") or ""),
+        "highlights": _texts("highlights"),
+        "watch": _texts("watch"),
+        "next_time": _texts("nextTime"),
+        "workout": workout.get("name") or None,
+        "workout_date": workout.get("d") or workout.get("date") or None,
+    }
+
+
+def speech_debrief(result: dict[str, Any], lang: str | None) -> str:
+    summary = result.get("summary") or " ".join(result.get("highlights") or [])
+    if result.get("score") is not None:
+        return speech("debrief", lang, score=result["score"], summary=summary).strip()
+    return speech("debrief_no_score", lang, summary=summary).strip()
+
+
+def coach_refusal_text(code: str | None, message: str | None, lang: str | None) -> str:
+    """A voice line for a refused Coach job (409 busy, 429 cap, 403 consent...)."""
+    reason = message or code or "?"
+    return speech("coach_refused", lang, reason=reason.rstrip("."))
+
+
+def coach_notification(kind: str, result: dict[str, Any], lang: str | None) -> tuple[str, str]:
+    """(title, message) for a persistent notification with a late Coach result."""
+    de = _lang(lang) == "de"
+    if result.get("status") == "failed":
+        title = "openGym Coach"
+        return title, speech("coach_failed", lang, reason=result.get("error") or "?")
+    if kind == "ask":
+        title = "openGym Coach – Antwort" if de else "openGym Coach – answer"
+        question = result.get("question")
+        body = str(result.get("answer") or "")
+        return title, (f"**{question}**\n\n{body}" if question else body)
+    title = "openGym Coach – Trainingsauswertung" if de else "openGym Coach – workout debrief"
+    parts = [speech_debrief(result, lang)]
+    for label_de, label_en, key in (("Stark", "Highlights", "highlights"), ("Im Blick behalten", "Watch", "watch"),
+                                    ("Nächstes Mal", "Next time", "next_time")):
+        items = result.get(key) or []
+        if items:
+            parts.append(f"**{label_de if de else label_en}**\n" + "\n".join(f"- {x}" for x in items))
+    return title, "\n\n".join(parts)
+
+
+# --- event entities ------------------------------------------------------------
+
+
+def event_attributes(og_type: str, event_data: dict[str, Any] | None) -> dict[str, Any]:
+    """Flat, automation-friendly attributes for an openGym event (payload v1)."""
+    ev = event_data or {}
+    data = ev.get("data") or {}
+    out: dict[str, Any] = {"test": bool(ev.get("test"))}
+    if og_type == "workout.finished":
+        w = data.get("workout") or {}
+        totals = w.get("totals") or {}
+        out.update({
+            "name": w.get("name"), "date": w.get("date"), "duration_min": w.get("durationMin"),
+            "volume": totals.get("volume"), "sets": totals.get("sets"), "reps": totals.get("reps"),
+            "exercises": totals.get("exercises"), "unit": w.get("unit"),
+            "records": [r.get("name") for r in (w.get("records") or []) if isinstance(r, dict)][:20],
+        })
+    elif og_type == "workout.pr":
+        w = data.get("workout") or {}
+        out.update({
+            "workout": w.get("name"), "date": w.get("date"), "unit": data.get("unit"),
+            "records": [
+                {"name": r.get("name"), "weight": r.get("weight"), "reps": r.get("reps")}
+                for r in (data.get("records") or []) if isinstance(r, dict)
+            ][:20],
+        })
+    elif og_type == "weighin.logged":
+        b = data.get("weighin") or {}
+        out.update({"weight": b.get("weight"), "unit": b.get("unit"), "date": b.get("date")})
+    return out
+
+
+# --- what to train today --------------------------------------------------------
+
+MUSCLE_NAMES = {
+    "en": {"chest": "chest", "upper-back": "upper back", "deltoids": "shoulders", "biceps": "biceps",
+           "triceps": "triceps", "quadriceps": "quads", "hamstring": "hamstrings", "gluteal": "glutes",
+           "calves": "calves", "abs": "core"},
+    "de": {"chest": "Brust", "upper-back": "oberer Rücken", "deltoids": "Schultern", "biceps": "Bizeps",
+           "triceps": "Trizeps", "quadriceps": "Beinstrecker", "hamstring": "Beinbeuger", "gluteal": "Gesäß",
+           "calves": "Waden", "abs": "Bauch"},
+}
+
+
+def muscle_list(slugs: list[str], lang: str | None) -> str:
+    """"Brust, Schultern und Trizeps" / "chest, shoulders and triceps"."""
+    names = [MUSCLE_NAMES[_lang(lang)].get(s, s) for s in slugs]
+    if len(names) <= 1:
+        return "".join(names)
+    return f"{', '.join(names[:-1])} {_SPEECH[_lang(lang)]['and']} {names[-1]}"
+
+
+def recommendation_text(rec: dict[str, Any], lang: str | None) -> str:
+    """Voice/notification line for OpenGymState.recommendation()."""
+    if rec.get("kind") == "rest":
+        tired = rec.get("fatigued") or []
+        if tired:
+            return speech("recommend_rest", lang, muscles=muscle_list(tired[:3], lang))
+        return speech("recommend_rest_all", lang)
+    if rec.get("kind") == "free":
+        return speech("recommend_free", lang)
+    text = speech("recommend", lang, muscles=muscle_list(rec.get("muscles") or [], lang))
+    if rec.get("routine"):
+        text += speech("recommend_routine", lang, routine=rec["routine"])
+    return text
+
+
+def recommendation_state(rec: dict[str, Any], lang: str | None) -> str:
+    """Short sensor state: "Rücken, Bizeps und Waden", "Pause" or "Freie Wahl"."""
+    de = _lang(lang) == "de"
+    if rec.get("kind") == "rest":
+        return "Pause" if de else "Rest"
+    if rec.get("kind") == "free":
+        return "Freie Wahl" if de else "Free choice"
+    return muscle_list(rec.get("muscles") or [], lang)[:255]
+
+
+def coach_logbook_message(kind: str, result: dict[str, Any], lang: str | None) -> str:
+    """Logbook line for a Coach result Home Assistant asked for."""
+    de = _lang(lang) == "de"
+    if result.get("status") == "failed":
+        return (f"Coach konnte nicht antworten: {result.get('error')}" if de
+                else f"Coach could not answer: {result.get('error')}")
+    if kind == "ask":
+        answer = " ".join(str(result.get("answer") or "").split())
+        if len(answer) > 200:
+            answer = answer[:199].rstrip() + "…"
+        return f"Coach: {answer}"
+    score = result.get("score")
+    workout = result.get("workout") or ("das Training" if de else "the workout")
+    head = (f"Coach bewertet {workout}" if de else f"Coach rated {workout}")
+    head += f": {score}/10" if score is not None else ""
+    summary = " ".join(str(result.get("summary") or "").split())
+    if len(summary) > 160:
+        summary = summary[:159].rstrip() + "…"
+    return f"{head} – {summary}" if summary else head

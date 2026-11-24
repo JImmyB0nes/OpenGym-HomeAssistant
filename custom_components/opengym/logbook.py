@@ -13,7 +13,7 @@ from typing import Any
 from homeassistant.core import Event, HomeAssistant, callback
 
 from . import logic
-from .const import DOMAIN, EVENT_TYPES
+from .const import DOMAIN, EVENT_COACH_ANSWER, EVENT_COACH_DEBRIEF, EVENT_TYPES
 
 LOGBOOK_ICONS = {
     "workout.finished": "mdi:weight-lifter",
@@ -45,3 +45,16 @@ def async_describe_events(
             }
 
         async_describe_event(DOMAIN, bus_event, _describe)
+
+    for kind, bus_event in (("ask", EVENT_COACH_ANSWER), ("debrief", EVENT_COACH_DEBRIEF)):
+
+        @callback
+        def _describe_coach(event: Event, kind: str = kind) -> dict[str, Any]:
+            data = dict(event.data)
+            return {
+                "name": _entry_title(data.get("entry_id")),
+                "message": logic.coach_logbook_message(kind, data, hass.config.language),
+                "icon": "mdi:account-tie-voice",
+            }
+
+        async_describe_event(DOMAIN, bus_event, _describe_coach)

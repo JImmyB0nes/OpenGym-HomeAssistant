@@ -39,7 +39,8 @@
 
 | | |
 |:---|:---|
-| ⚡ **Real time** | Signed webhooks for *workout finished*, *new personal record* and *weigh-in* — as HA events, logbook entries and device triggers. |
+| ⚡ **Real time** | Signed webhooks for *workout finished*, *new personal record* and *weigh-in* — as event entities, HA events, logbook entries and device triggers. |
+| 💡 **What to train today** | A recommendation from the recovery model: which muscle groups are fresh and behind their weekly target, plus the routine that fits — as a sensor and by voice. |
 | 🔄 **Always up to date** | Polling of the openGym API (default 15 min) plus a fast revision check every 30 s. |
 | 🧬 **Dashboard cards** | Muscle balance with openGym's body map, training week, next workout and progress (1RM trend, weight vs. goal, records) — bundled, no extra resource needed. |
 | 🏋️ **Sensors for everything** | Last workout, volume, week streak, next session, records, 1RM, weight & goal, fatigue, weekly sets per muscle. |
@@ -49,11 +50,13 @@
 | 📈 **Full history** | Your whole openGym history (body weight, volume, 1RM per exercise) in Home Assistant's long-term statistics — back to your first workout, not just since installing. |
 | 📖 **Logbook** | Finished workouts, records and weigh-ins appear as readable lines in the logbook, no automation needed. |
 | ⏱️ **During training** | Rest-timer pushes to your devices, live progress *(admin)*, heart rate & zone from your watch. |
-| 🧑‍🏫 **Coach** | Trigger a review, status as sensor, accept/reject suggestions via buttons *(if your instance offers the coach)*. |
+| 🧑‍🏫 **Coach** | Ask it anything by voice or service, get a debrief of your workout (optionally automatic after every session), trigger a review, accept/reject suggestions via buttons *(if your instance offers the coach)*. |
 | 🌍 **Your language** | Entity names follow Home Assistant's language (German/English); entity IDs stay English, so automations and cards keep working. |
 | 🔐 **Secure & maintainable** | Pairing code instead of passwords, HMAC signature verification, reauth, repair hints, diagnostic data, update entity — tested against a real Home Assistant core in CI. |
 
 > [!TIP]
+> **New in 0.12:** event entities for workouts, records, weigh-ins and Coach results; a daily training recommendation (*"What should I train today?"*); ask the Coach by voice or service, and let it debrief your workouts.
+>
 > **New in 0.11:** voice control with Assist, logbook entries, full history in the long-term statistics, the progress card, a rest-timer slider and a "today's routine" dropdown, translated entity names. Nothing to migrate — existing entity IDs stay as they are.
 
 ## 🚀 Quick start
@@ -277,7 +280,7 @@ The integration ships four cards (`custom:opengym-muscle-card`, `custom:opengym-
   lovelace:
     mode: yaml
     resources:
-      - url: /opengym/opengym-muscle-card.js?v=0.11.4
+      - url: /opengym/opengym-muscle-card.js?v=0.12.0
         type: module
   ```
 
@@ -391,6 +394,11 @@ Talk to openGym through Home Assistant's built-in voice assistant — on your ph
 | *"Trag 80,4 Kilo ein"* · *"Ich wiege 80 komma 4"* · *"Log 80.4 kilos"* · *"I weigh 176 pounds"* | logs today's weigh-in in openGym (pounds/kilos are converted to your openGym unit) and tells you how far it is to your goal |
 | *"Starte die Pause"* · *"Starte 90 Sekunden Pause"* · *"Start a 2 minute rest"* | starts the rest timer on your devices (without a number: the *Rest timer duration* slider) |
 | *"Stoppe die Pause"* · *"Stop the rest timer"* | stops it |
+| *"Was soll ich heute trainieren?"* · *"What should I train today?"* | *"Heute ideal: oberer Rücken, Bizeps und Waden. Dazu passt deine Routine Pull."* — or a rest day when nothing has recovered |
+| *"Frag den Coach, ob ich heute Beine trainieren soll"* · *"Ask the coach whether I should deload"* | reads out the Coach's answer *(Coach instances)* |
+| *"Wie war mein letztes Training?"* · *"How was my last workout?"* | the Coach's debrief: score out of 10 and a short summary *(Coach instances)* |
+
+The Coach needs a few seconds to think. If it takes longer than about 25 seconds, Assist says so and the answer appears as a notification in Home Assistant (and in the logbook).
 
 <details>
 <summary>How it works, customising, switching it off</summary>
@@ -426,6 +434,67 @@ entities:
 ```
 
 Re-importing is idempotent, so nothing is duplicated. Switch it off in the integration **options → Import history into long-term statistics**.
+
+## 💡 What to train today
+
+`sensor.opengym_training_recommendation` reads openGym's recovery model every time your data changes:
+
+- Only **recovered** muscle groups qualify (the same fatigue model as the muscle card).
+- Among those, the ones **furthest below their weekly set target** and **longest untrained** come first. A group you set to 0–0 sets in openGym is never suggested.
+- Then it picks the **routine** that hits those groups best without loading the tired ones.
+
+The state is a short list (*"upper back, biceps and calves"*), *Rest* when nothing has recovered or *Free choice* when everything is fresh and your weekly targets are met. Attributes: `kind` (`train` / `rest` / `free`), `muscles`, `fatigued`, `routine`, `routine_id`, `scores` and `text` (the full sentence, ready for a notification).
+
+```yaml
+# A morning push with the plan for today
+automation:
+  - alias: "Training tip"
+    triggers:
+      - trigger: time
+        at: "07:30:00"
+    actions:
+      - action: notify.mobile_app_my_phone
+        data:
+          title: "openGym"
+          message: "{{ state_attr('sensor.opengym_training_recommendation', 'text') }}"
+```
+
+## 🧑‍🏫 Coach
+
+If your openGym instance runs the Coach, Home Assistant can talk to it:
+
+| | |
+|---|---|
+| `opengym.coach_ask` | Ask a question; the answer comes back as the action's **response** (waits up to `wait` seconds, default 60). |
+| `opengym.coach_debrief` | Have the Coach read one workout (default: the latest): score 1–10, summary, highlights, things to watch, next time. |
+| **Option** *Coach: debrief every new workout* | Off by default. When on, every new session is debriefed right after it lands — uses the Coach's daily budget. |
+
+Every result also fires `opengym_coach_answer` / `opengym_coach_debrief`, updates `event.opengym_coach_result` and shows up in the logbook. With `notify: true` a result that takes longer than `wait` becomes a notification in Home Assistant. Questions asked in the openGym app stay in the app; Home Assistant only picks up the answers to its own questions.
+
+```yaml
+action: opengym.coach_ask
+data:
+  question: "Should I train legs today? My knee feels a bit sore."
+  wait: 60
+response_variable: coach
+# -> coach.status: answered | pending | failed, coach.answer, coach.question
+```
+
+```yaml
+# Read the debrief to me as soon as it is there
+automation:
+  - alias: "Coach debrief"
+    triggers:
+      - trigger: state
+        entity_id: event.opengym_coach_result
+        attribute: event_type
+        to: debrief
+    actions:
+      - action: notify.mobile_app_my_phone
+        data:
+          title: "Workout {{ trigger.to_state.attributes.score }}/10"
+          message: "{{ trigger.to_state.attributes.summary }}"
+```
 
 ## 📖 Logbook
 
@@ -474,6 +543,13 @@ Additionally *(0.10)*:
 - `binary_sensor.opengym_today_done` — `on` as soon as a workout or day note exists today (openGym's `nudge-check`)
 - `binary_sensor.opengym_workout_reminder_due` — `on` while openGym's reminder rule would still remind today
 - `button.opengym_accept_coach_proposal` / `button.opengym_reject_coach_proposal` — only if the instance offers the coach
+
+New in **0.12** — event entities (state = time of the latest event, details as attributes; pick them in the automation editor under *Entity → State*):
+- `event.opengym_workout_finished` — `name`, `date`, `duration_min`, `volume`, `sets`, `reps`, `exercises`, `unit`, `records`, `test`
+- `event.opengym_personal_record` — `workout`, `date`, `unit`, `records` (name, weight, reps)
+- `event.opengym_weigh_in` — `weight`, `unit`, `date`
+- `event.opengym_coach_result` — `answer` / `debrief` / `failed` with the Coach's result *(Coach instances)*
+- `sensor.opengym_training_recommendation` — see [What to train today](#-what-to-train-today)
 
 New in **0.11** — controls for the dashboard:
 - `select.opengym_today_s_routine` — today's routine (your openGym routines or *Rest day*). Picking one writes a day override into the plan, like swapping a day in the app; picking what the weekly plan has anyway removes the override.
@@ -582,6 +658,8 @@ For those who want to know exactly:
 | `workout.finished` | `opengym_workout_finished` |
 | `workout.pr` | `opengym_personal_record` |
 | `weighin.logged` | `opengym_weighin_logged` |
+| *(Coach answer, HA-started)* | `opengym_coach_answer` |
+| *(Coach debrief, HA-started)* | `opengym_coach_debrief` |
 
 Each event also shows up in the **logbook** (see above). The event data is openGym's webhook payload (`data.workout`, `data.records`, `data.weighin`), see openGym's `docs/INTEGRATIONS.md`.
 
@@ -762,7 +840,7 @@ Add the integration multiple times, one pairing code per profile. Every service 
 <details>
 <summary><b>What can be configured?</b></summary>
 
-Via the integration's **options**: polling interval (default 15 min), fast check (default 30 s, `0` = off), maximum heart rate for the HR zones (default 190), voice commands (on) and the long-term statistics import (on). On the device: the rest timer duration and today's routine.
+Via the integration's **options**: polling interval (default 15 min), fast check (default 30 s, `0` = off), maximum heart rate for the HR zones (default 190), voice commands (on), the long-term statistics import (on) and the automatic Coach debrief (off). On the device: the rest timer duration and today's routine.
 </details>
 
 <details>

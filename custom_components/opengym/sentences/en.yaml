@@ -43,7 +43,26 @@ intents:
     data:
       - sentences:
           - "(stop|cancel|end) [the|my] rest [timer]"
+  OpenGymRecommendation:
+    data:
+      - sentences:
+          - "what should I train today"
+          - "which muscle[s| groups] should I train [today]"
+          - "what('s| is) the best [thing] to train today"
+          - "[my] training recommendation [for today]"
+  OpenGymCoachAsk:
+    data:
+      - sentences:
+          - "ask [the|my] coach [about|whether|if] {question}"
+          - "[hey] coach[,] {question}"
+  OpenGymCoachDebrief:
+    data:
+      - sentences:
+          - "how was my [last] (workout|training|session)"
+          - "(rate|review|debrief) my [last] (workout|training|session)"
 lists:
+  question:
+    wildcard: true
   weight:
     wildcard: true
   unit:
